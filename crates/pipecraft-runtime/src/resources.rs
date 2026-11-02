@@ -79,7 +79,6 @@ pub struct GlobalResourceManager {
     state: Arc<Mutex<ResourceState>>,
     notify: Arc<Notify>,
     generation: Arc<AtomicU64>,
-    lease_sequence: Arc<AtomicU64>,
 }
 
 impl Default for GlobalResourceManager {
@@ -98,15 +97,16 @@ impl GlobalResourceManager {
             state: Arc::new(Mutex::new(ResourceState::new(points_limit))),
             notify: Arc::new(Notify::new()),
             generation: Arc::new(AtomicU64::new(0)),
-            lease_sequence: Arc::new(AtomicU64::new(1)),
         }
     }
 
     /// Preserve the legacy DAG resource API while routing it through the same
     /// ledger used by external occupancy.
     pub fn try_acquire(&self, step: &PipelineStep) -> Option<ResourceLease> {
-        let lease_id = self.lease_sequence.fetch_add(1, Ordering::Relaxed);
-        let owner = format!("dag:{}:{lease_id}", step.id);
+        // A blocked DAG node retries acquisition. Its waiter identity must stay
+        // stable across retries or an abandoned earlier identity can remain at
+        // the head of the exclusive FIFO forever.
+        let owner = format!("dag:{}", step.id);
         let mut demands = Vec::new();
         for key in &step.exclusive_resources {
             demands.push(ResourceDemand {
