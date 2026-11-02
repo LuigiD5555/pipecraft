@@ -3,6 +3,7 @@ use serde_json::Value;
 
 pub const PROTOCOL_VERSION: &str = "pipecraft.ipc/v1";
 
+// G1 contract-only transport: typed validation/roundtrip, never execution.
 pub const EXTERNAL_WORK_PROTOCOL_VERSION: &str = "pipecraft.external-work/v1";
 pub const EXTERNAL_WORK_CAPABILITY: &str = "external_work_contract_v1";
 
