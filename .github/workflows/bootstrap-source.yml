@@ -1,0 +1,56 @@
+name: Bootstrap recovered PipeCraft 1.7 source
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'bootstrap/source-bundle/**'
+      - '.github/workflows/bootstrap-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  expand-source:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and validate recovered source
+        run: |
+          set -euo pipefail
+          cat bootstrap/source-bundle/bundle.b64.* | tr -d '\n\r' | base64 -d > /tmp/pipecraft-source.tar.gz
+          mkdir /tmp/pipecraft-recovered
+          tar -xzf /tmp/pipecraft-source.tar.gz -C /tmp/pipecraft-recovered
+          root=/tmp/pipecraft-recovered/pipecraft-1.7.0-alpha.1
+          test -f "$root/Cargo.toml"
+          test -d "$root/crates"
+          test -f "$root/SOURCE_MANIFEST.sha256"
+          (cd "$root" && sha256sum -c SOURCE_MANIFEST.sha256)
+          python3 "$root/scripts/check_release_sources.py"
+      - name: Expand source into repository root
+        run: |
+          set -euo pipefail
+          root=/tmp/pipecraft-recovered/pipecraft-1.7.0-alpha.1
+          rsync -a --delete-excluded \
+            --exclude '.git/' \
+            --exclude '.github/workflows/bootstrap-source.yml' \
+            "$root/" ./
+          rm -rf bootstrap/source-bundle
+          rm -f .github/workflows/bootstrap-source.yml
+          test -f Cargo.toml
+          test -d crates
+      - name: Commit recovered source
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'source: recover PipeCraft 1.7.0-alpha.1 workspace'
+          git push origin HEAD:main
