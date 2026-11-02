@@ -101,7 +101,6 @@ impl RuntimeService {
         &self.root
     }
 
-
     /// Persist a provider-supplied reconciliation observation without claiming
     /// business authority. PipeCraft never mints epochs or receipts here.
     pub async fn record_external_reconcile_hook(
@@ -122,7 +121,6 @@ impl RuntimeService {
             .await
             .map_err(|error| error.to_string())
     }
-
 
     async fn recover_startup(&self) -> Result<(), String> {
         let candidates = {
