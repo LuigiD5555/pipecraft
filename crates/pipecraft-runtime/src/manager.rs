@@ -11,6 +11,7 @@ use pipecraft_report::PipelineRun;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
+use crate::capacity::{calculate, CapacityEvidence, CapacityProfile, CapacityResult};
 use crate::engine::panic_run;
 use crate::{ExecutionContext, PipelineEngine, RuntimeCoordinator};
 
@@ -59,14 +60,39 @@ pub struct RuntimeManager {
 
 impl RuntimeManager {
     pub fn new(engine: PipelineEngine, limits: RuntimeLimits) -> Self {
+        Self::new_with_resource_points(engine, limits, u32::MAX)
+    }
+
+    fn new_with_resource_points(
+        engine: PipelineEngine,
+        limits: RuntimeLimits,
+        resource_points: u32,
+    ) -> Self {
         let max_pipelines = limits.max_pipelines.max(1);
-        let coordinator = RuntimeCoordinator::new(limits.max_tasks);
+        let coordinator =
+            RuntimeCoordinator::with_resource_points(limits.max_tasks, resource_points.max(1));
         Self {
             engine: Arc::new(engine),
             limits,
             coordinator,
             pipeline_slots: Arc::new(Semaphore::new(max_pipelines)),
         }
+    }
+
+    /// Build a manager whose weighted resource ledger is bounded by the same
+    /// pure adaptive-capacity calculation used by external admission.
+    ///
+    /// Host CPU/memory observations must be supplied through `evidence`; this
+    /// constructor never samples the host or mutates capacity history.
+    pub fn new_with_adaptive_capacity(
+        engine: PipelineEngine,
+        limits: RuntimeLimits,
+        profile: &CapacityProfile,
+        evidence: &CapacityEvidence,
+    ) -> Result<(Self, CapacityResult), String> {
+        let capacity = calculate(profile, evidence)?;
+        let manager = Self::new_with_resource_points(engine, limits, capacity.points);
+        Ok((manager, capacity))
     }
 
     pub fn limits(&self) -> &RuntimeLimits {
@@ -194,6 +220,61 @@ mod tests {
                 max_tasks: 2,
             },
         )
+    }
+
+    #[test]
+    fn adaptive_capacity_bounds_the_shared_resource_ledger() {
+        use crate::resources::{ResourceDemand, ResourceShareMode};
+
+        let profile = CapacityProfile::default();
+        let evidence = CapacityEvidence {
+            clean: 5,
+            ..CapacityEvidence::default()
+        };
+        let (manager, result) = RuntimeManager::new_with_adaptive_capacity(
+            PipelineEngine::default(),
+            RuntimeLimits {
+                worker_threads: 2,
+                max_pipelines: 2,
+                max_tasks: 8,
+            },
+            &profile,
+            &evidence,
+        )
+        .unwrap();
+        assert_eq!(result.points, 5);
+        assert_eq!(manager.coordinator.resources.snapshot().points_limit, 5);
+
+        let four = [ResourceDemand {
+            resource_key: "work:a".into(),
+            points: 4,
+            quantity: 1,
+            share_mode: ResourceShareMode::Shared,
+            limit: 8,
+        }];
+        let two = [ResourceDemand {
+            resource_key: "work:b".into(),
+            points: 2,
+            quantity: 1,
+            share_mode: ResourceShareMode::Shared,
+            limit: 8,
+        }];
+        let lease = manager
+            .coordinator
+            .try_external_resources("a", &four)
+            .unwrap()
+            .unwrap();
+        assert!(manager
+            .coordinator
+            .try_external_resources("b", &two)
+            .unwrap()
+            .is_none());
+        drop(lease);
+        assert!(manager
+            .coordinator
+            .try_external_resources("b", &two)
+            .unwrap()
+            .is_some());
     }
 
     #[test]

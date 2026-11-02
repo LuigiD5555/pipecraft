@@ -33,7 +33,7 @@ or `PipeCraft.plan_admission(snapshot)` through IPC `plan_admission`.
 | `adaptive_capacity` | optional object | `profile` and persisted `evidence` for pure capacity calculation |
 
 Each candidate contains `id`, `group`, `priority` (lower first),
-`ready_at_ms`, optional `not_before_ms`, `weight`, `scopes`,
+`eligible_since_ms`, `ready_at_ms`, optional `not_before_ms`, `weight`, `scopes`,
 `exclusive_resources`, `shared_resources`, optional `hard_block`,
 `dependencies_met`, `group_limit`. Missing fields use safe defaults; unknown
 fields follow the current serde behavior and should not be used to communicate
@@ -49,17 +49,18 @@ is high. A hard block remains blocked until a new snapshot removes it.
    exclusive/shared declarations.
 2. Derive an effective capacity from an explicit budget or a pure calculation.
 3. Rank in legacy input order or fair order: `priority - floor(wait_ms / aging_ms)`,
-   then oldest group dispatch, earliest `ready_at_ms`, stable ID.
+   where wait begins at `eligible_since_ms` (falling back to `ready_at_ms` for
+   older clients), then oldest group dispatch, earliest `ready_at_ms`, stable ID.
 4. Filter dependency, hard policy and time restrictions.
 5. Reject a candidate if its group, scope or named resources conflict with
    active reservations or earlier proposals in the same planning call.
 6. Prevent exceeding the effective capacity (unless idle-overweight option is
-   explicitly enabled). Return `blocked` reasons and earliest `next_wakeup_at_ms`
-   for not-yet-ready candidates.
+   explicitly enabled). Return `blocked` reasons, a deterministic `decision_trace`
+   and earliest `next_wakeup_at_ms` for time gates and heavy-backfill activation.
 
-`HEAVY_BACKFILL_GUARD` is a preliminary conservative safeguard, **not** a
-verified implementation of the Extracta scheduler's exact heavy reservation
-semantics. The complete parity suite remains an integration task.
+`HEAVY_BACKFILL_GUARD` is deterministic and exposes its activation wakeup in
+`next_wakeup_at_ms`. Exact equivalence with Extracta remains a differential
+parity gate, not an assumption.
 
 ## Capacity profile
 
@@ -100,8 +101,9 @@ durable offer ledger or external worker registration.
 
 - Confirmed offers, epochs, leases, heartbeat, revocation, fencing, and
   crash/ACK reconciliation are not exposed by this preview.
-- The DAG runner's process-local resource coordinator and the read-only
-  external planner are not yet one global cross-process resource authority.
+- DAG READY nodes now pass through the same deterministic admission engine as
+  external work. Physical task slots and resource leases remain a separate
+  confirmation/execution boundary, and cross-process authority is still a later gate.
 - Source-specific cooldown inheritance and reason equivalence depend on a
   domain-supplied snapshot; they are not computed automatically.
 - Fairness and heavy-task backfill have deterministic tests, but equivalence
