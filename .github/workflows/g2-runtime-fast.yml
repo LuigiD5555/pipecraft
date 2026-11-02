@@ -1,0 +1,32 @@
+name: G2 runtime fast gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/pipecraft-runtime/src/admission.rs'
+      - 'crates/pipecraft-runtime/src/resources.rs'
+      - 'crates/pipecraft-runtime/src/coordinator.rs'
+      - '.github/workflows/g2-runtime-fast.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g2-runtime-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Runtime admission and resource tests
+        run: cargo test --locked -p pipecraft-runtime --lib
