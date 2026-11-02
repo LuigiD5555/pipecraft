@@ -477,6 +477,7 @@ pub async fn schedule(
                 id: id.clone(),
                 group: String::new(),
                 priority: 0,
+                eligible_since_ms: 0,
                 ready_at_ms: 0,
                 not_before_ms: None,
                 weight: 1,
