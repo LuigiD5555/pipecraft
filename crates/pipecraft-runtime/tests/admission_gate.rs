@@ -85,8 +85,15 @@ fn heavy_guard_publishes_exact_activation_wakeup() {
     };
     let decision = decide(&snapshot).unwrap();
     assert_eq!(decision.next_wakeup_at_ms, Some(11_000));
-    assert!(decision.offered.is_empty());
-    assert!(decision
+    assert_eq!(decision.offered, vec!["light"]);
+
+    let guarded = decide(&AdmissionSnapshot {
+        now_ms: 11_000,
+        ..snapshot
+    })
+    .unwrap();
+    assert!(guarded.offered.is_empty());
+    assert!(guarded
         .blocked
         .iter()
         .any(|item| item.id == "light" && item.reason == "HEAVY_BACKFILL_GUARD"));
