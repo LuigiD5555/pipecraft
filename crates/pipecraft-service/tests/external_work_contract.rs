@@ -94,3 +94,36 @@ fn external_work_success_is_verified_not_process_exit_success() {
     assert!(outcomes.iter().any(|v| v == "UNCERTAIN"));
     assert!(!outcomes.iter().any(|v| v == "SUCCEEDED"));
 }
+
+
+#[test]
+fn resource_and_replay_golden_stays_in_sync_with_schema() {
+    let schema = schema();
+    let golden = golden();
+    let defs = schema.get("$defs").and_then(Value::as_object).unwrap();
+    let resource = golden
+        .get("resource_contract")
+        .and_then(Value::as_object)
+        .expect("golden resource_contract");
+
+    let schema_modes = defs["resource_share_mode"]["enum"].as_array().unwrap();
+    let demand_mode = resource["demand"]["share_mode"].as_str().unwrap();
+    assert!(
+        schema_modes.iter().any(|value| value == demand_mode),
+        "golden resource share mode is not allowed by schema"
+    );
+
+    assert_eq!(
+        defs["replay_disposition"].get("enum"),
+        resource.get("replay_dispositions"),
+        "replay dispositions drifted from golden contract"
+    );
+
+    let claim_fence = defs["claim_fence"].as_object().unwrap();
+    let required = claim_fence["required"].as_array().unwrap();
+    assert!(required.iter().any(|value| value == "owner_token"));
+    assert_eq!(
+        defs["owner_token"].get("writeOnly").and_then(Value::as_bool),
+        Some(true)
+    );
+}
