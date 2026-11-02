@@ -58,7 +58,7 @@ pub struct StepResult {
     pub step_type: String,
     pub success: bool,
     pub status: String,
-    pub message: String,
+    pub message: Box<str>,
     pub output: Box<str>,
     pub data: Box<serde_json::Value>,
 }
@@ -76,7 +76,7 @@ impl StepResult {
             step_type: step_type.into(),
             success,
             status: status.into(),
-            message: message.into(),
+            message: message.into().into_boxed_str(),
             output: String::new().into_boxed_str(),
             data: Box::new(serde_json::Value::Object(Default::default())),
         }
