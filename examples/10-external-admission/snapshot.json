@@ -1,0 +1,38 @@
+{
+  "revision": 42,
+  "now_ms": 1000000,
+  "settings": {
+    "policy": "fair",
+    "aging_ms": 120000,
+    "heavy_wait_guard_ms": 300000,
+    "initial_capacity": 4,
+    "ceiling_capacity": 8,
+    "floor_capacity": 1,
+    "allow_idle_overweight": false
+  },
+  "adaptive_capacity": {
+    "profile": {
+      "initial": 4,
+      "ceiling": 8,
+      "floor": 1,
+      "grow_every_clean": 5,
+      "min_samples": 4,
+      "min_bad_groups": 2,
+      "failure_ratio": 0.25,
+      "memory_reserve_mib": 1024,
+      "mib_per_point": 700,
+      "cpu_load_limit": 0.85
+    },
+    "evidence": { "clean": 5, "bad": 0, "bad_groups": 0, "memory_available_mib": 8192, "cpu_load_ratio": 0.2 }
+  },
+  "last_dispatch_ms": {"source-a": 900000, "source-b": 800000},
+  "active": [],
+  "candidates": [
+    {"id": "job-a", "group": "source-a", "priority": 100, "ready_at_ms": 800000,
+      "weight": 3, "scopes": ["origin:example.org"], "exclusive_resources": ["browser:primary"]},
+    {"id": "job-b", "group": "source-b", "priority": 100, "ready_at_ms": 700000,
+      "weight": 1, "scopes": ["origin:example.org"]},
+    {"id": "job-c", "group": "source-c", "priority": 100, "ready_at_ms": 750000,
+      "weight": 1, "not_before_ms": 1200000, "hard_block": "SOURCE_COOLDOWN"}
+  ]
+}

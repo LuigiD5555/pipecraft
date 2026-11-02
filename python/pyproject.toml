@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipecraft-python"
+version = "1.7.0a1"
+description = "Thin Python IPC client for the resident Rust-first PipeCraft runtime."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "PipeCraft" }]
+keywords = ["pipeline", "runtime", "yaml", "automation", "pipecraft", "local-first"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Build Tools",
+]
+# Runtime uses only the Python standard library, by design.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/LuigiD5555/pipecraft"
+Documentation = "https://github.com/LuigiD5555/pipecraft/blob/main/docs/python-bridge.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

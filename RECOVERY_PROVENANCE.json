@@ -1,0 +1,20 @@
+{
+  "historical_source_commit": "62c3fdbee2d1df7e393330812a44542827c16489",
+  "historical_build_commit": "f35582d9506f53bf7559d74c9751d7d308305557",
+  "historical_build_script": "https://github.com/LuigiD5555/styler/blob/f35582d9506f53bf7559d74c9751d7d308305557/scripts/build_pipecraft_16_temp.py",
+  "workflow": "https://github.com/LuigiD5555/styler/actions/runs/32326726645",
+  "build_artifact_id": 9391642629,
+  "observed_elf_sha256": "3fd8e31b5ea60f45e3cb82d808bbe55738118f71da52f2c2576d1c5e70e54ac2",
+  "toolchain_reported": "rustc 1.97.1",
+  "rebuild_claim": "historically grounded source transformation; not compiled in current environment",
+  "source_base_zip_sha256": "f6b0eb4402b5f02c9ad0c7723fdc7ff4aa5165aa0261643dc21672f2b4bdf22b",
+  "changed_files": [
+    "Cargo.toml",
+    "crates/pipecraft-core/src/loader.rs",
+    "crates/pipecraft-core/src/lib.rs",
+    "crates/pipecraft-service/Cargo.toml",
+    "crates/pipecraft-service/src/protocol.rs",
+    "crates/pipecraft-service/src/server.rs"
+  ],
+  "historical_reapplication_script": "styler_recovery/reapply_pipecraft_16_historical.py"
+}

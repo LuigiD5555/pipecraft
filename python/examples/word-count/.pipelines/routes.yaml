@@ -1,0 +1,7 @@
+schema_version: pipecraft/v1
+routes:
+  - id: wc
+    when:
+      labels:
+        any: [wc, count]
+    pipeline: word-count

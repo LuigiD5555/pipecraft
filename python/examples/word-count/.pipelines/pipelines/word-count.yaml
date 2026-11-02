@@ -1,0 +1,32 @@
+schema_version: pipecraft/v1
+name: word-count
+
+description: Count words in a file using a Python plugin.
+
+repos:
+  current:
+    path: .
+    visibility: local
+
+steps:
+  - id: intro
+    type: note
+    with:
+      text: This pipeline runs a Python plugin that speaks pipecraft.plugin/v1.
+
+  - id: count
+    type: plugin
+    repo: current
+    needs: [intro]
+    description: Runs plugins/word_count.py; requires --execute to actually run.
+    with:
+      argv: ["python", "plugins/word_count.py"]
+      path: README.md
+
+  - id: review
+    type: checklist
+    needs: [count]
+    with:
+      items:
+        - "Plugin returned JSON on stdout"
+        - "Word count present in the step data"

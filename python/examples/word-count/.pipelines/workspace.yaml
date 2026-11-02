@@ -1,0 +1,10 @@
+schema_version: pipecraft/v1
+workspace:
+  name: word-count
+  description: Demonstrates a Python plugin step (pipecraft.plugin/v1).
+paths:
+  pipeline_dir: .pipelines/pipelines
+  route_file: .pipelines/routes.yaml
+  runs_dir: .pipelines/runs
+defaults:
+  default_pipeline: word-count

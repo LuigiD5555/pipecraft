@@ -1,0 +1,299 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -10,7 +10,7 @@
+ ]
+ 
+ [workspace.package]
+-version = "1.5.0-alpha.1"
++version = "1.6.0-alpha.1"
+ edition = "2021"
+ rust-version = "1.75"
+ license = "Apache-2.0"
+--- a/crates/pipecraft-core/src/loader.rs
++++ b/crates/pipecraft-core/src/loader.rs
+@@ -97,8 +97,30 @@
+ /// Load a single pipeline YAML file into the stable model.
+ pub fn load_pipeline(path: &Path) -> ConfigResult<PipelineDefinition> {
+     let raw = read_yaml(path)?;
+-
+-    let name = get(&raw, "name")
++    parse_pipeline_value(&raw, path)
++}
++
++/// Load a pipeline from an already parsed value. This is the structured IPC
++/// entry point: callers do not need to materialize a temporary YAML pipeline.
++pub fn load_pipeline_value(raw: Value, source: &str) -> ConfigResult<PipelineDefinition> {
++    let path = PathBuf::from(source);
++    match raw {
++        Value::Mapping(_) => parse_pipeline_value(&raw, &path),
++        Value::Null => {
++            let empty = Value::Mapping(Default::default());
++            parse_pipeline_value(&empty, &path)
++        }
++        _ => Err(ConfigError::new(
++            format!("Pipeline root must be a mapping: {source}"),
++            "YAML_ROOT_ERROR",
++        )
++        .with_hint("The top level of a PipeCraft spec must be key/value pairs.")),
++    }
++}
++
++fn parse_pipeline_value(raw: &Value, path: &Path) -> ConfigResult<PipelineDefinition> {
++
++    let name = get(raw, "name")
+         .and_then(yamlx::as_string)
+         .filter(|s| !s.is_empty())
+         .ok_or_else(|| {
+@@ -111,7 +133,7 @@
+         })?;
+ 
+     // schema_version: accept `pipecraft/v1`, `1` (int) or `"1"`. Default to V1.
+-    let schema_version = match get(&raw, "schema_version") {
++    let schema_version = match get(raw, "schema_version") {
+         None => SchemaVersion::V1,
+         Some(v) => SchemaVersion::parse(v).ok_or_else(|| {
+             ConfigError::new(
+@@ -122,21 +144,21 @@
+         })?,
+     };
+ 
+-    let steps = parse_steps(&raw, path)?;
++    let steps = parse_steps(raw, path)?;
+ 
+     let map_field = |key: &str| -> ConfigResult<WithMap> {
+-        match get(&raw, key) {
++        match get(raw, key) {
+             None => Ok(WithMap::new()),
+             Some(v) => yamlx::as_mapping(v, key),
+         }
+     };
+ 
+-    let on_error = parse_error_policy(&raw)?;
++    let on_error = parse_error_policy(raw)?;
+ 
+     Ok(PipelineDefinition {
+         schema_version,
+         name,
+-        description: get(&raw, "description").and_then(yamlx::as_string).unwrap_or_default(),
++        description: get(raw, "description").and_then(yamlx::as_string).unwrap_or_default(),
+         context: map_field("context")?,
+         repos: map_field("repos")?,
+         target: map_field("target")?,
+@@ -222,7 +244,7 @@
+         };
+ 
+         steps.push(PipelineStep {
+-            id: sid,
++            id: sid.clone(),
+             step_type: stype,
+             description: get(map, "description").and_then(yamlx::as_string).unwrap_or_default(),
+             repo: get(map, "repo").and_then(yamlx::as_string).unwrap_or_default(),
+--- a/crates/pipecraft-core/src/lib.rs
++++ b/crates/pipecraft-core/src/lib.rs
+@@ -13,7 +13,7 @@
+ pub mod yamlx;
+ 
+ pub use error::{ConfigError, ConfigResult};
+-pub use loader::{load_pipeline, load_workspace, PipelineCatalog};
++pub use loader::{load_pipeline, load_pipeline_value, load_workspace, PipelineCatalog};
+ pub use model::{
+     ErrorPolicy, PipelineDefinition, PipelineStep, RouteDefinition, RouteMatch, SchemaVersion,
+     WorkspaceConfig,
+--- a/crates/pipecraft-service/Cargo.toml
++++ b/crates/pipecraft-service/Cargo.toml
+@@ -12,6 +12,7 @@
+ pipecraft-report.workspace = true
+ serde.workspace = true
+ serde_json.workspace = true
++serde_yaml.workspace = true
+ chrono.workspace = true
+ uuid.workspace = true
+ tokio.workspace = true
+--- a/crates/pipecraft-service/src/protocol.rs
++++ b/crates/pipecraft-service/src/protocol.rs
+@@ -17,6 +17,29 @@
+         labels: Vec<String>,
+         #[serde(default = "default_workers")]
+         max_workers: usize,
++        #[serde(default)]
++        from_step: Option<String>,
++        #[serde(default)]
++        only: Vec<String>,
++    },
++    SubmitSpec {
++        spec: Value,
++        #[serde(default)]
++        execute: bool,
++        #[serde(default)]
++        approve: bool,
++        #[serde(default)]
++        labels: Vec<String>,
++        #[serde(default = "default_workers")]
++        max_workers: usize,
++        #[serde(default)]
++        from_step: Option<String>,
++        #[serde(default)]
++        only: Vec<String>,
++    },
++    ValidateSpec { spec: Value },
++    PlanSpec {
++        spec: Value,
+         #[serde(default)]
+         from_step: Option<String>,
+         #[serde(default)]
+--- a/crates/pipecraft-service/src/server.rs
++++ b/crates/pipecraft-service/src/server.rs
+@@ -3,7 +3,7 @@
+ use std::sync::Arc;
+ 
+ use chrono::Utc;
+-use pipecraft_core::{load_pipeline, PipelineCatalog};
++use pipecraft_core::{load_pipeline, load_pipeline_value, PipelineCatalog};
+ use pipecraft_report::write_run;
+ use pipecraft_runtime::{CancellationToken, ExecutionContext, PipelineEngine, RuntimeCoordinator};
+ use serde_json::{json, Value};
+@@ -14,7 +14,7 @@
+ use crate::protocol::{IpcRequest, IpcResponse, PROTOCOL_VERSION};
+ use crate::store::{JobRecord, JobRequest, JobStatus, JobStore};
+ 
+-const MAX_REQUEST_BYTES: usize = 1024 * 1024;
++const MAX_REQUEST_BYTES: usize = 8 * 1024 * 1024;
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub enum RecoveryPolicy { Manual, Auto }
+@@ -193,6 +193,7 @@
+                 "max_pipelines": self.config.max_pipelines,
+                 "max_tasks": self.config.max_tasks,
+                 "recovery": if self.config.recovery == RecoveryPolicy::Auto { "auto" } else { "manual" },
++                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "command", "plugin", "resume"],
+             })),
+             IpcRequest::Submit { pipeline, execute, approve, labels, max_workers, from_step, only } => {
+                 let catalog = PipelineCatalog::open(&self.root).map_err(internal)?;
+@@ -227,6 +228,74 @@
+                 self.start_existing(run_id.clone(), false).await.map_err(service_error)?;
+                 Ok(json!({"run_id": run_id, "status": "queued"}))
+             }
++            IpcRequest::ValidateSpec { spec } => {
++                let raw = serde_yaml::to_value(&spec).map_err(internal)?;
++                let definition = match load_pipeline_value(raw, "<ipc-spec>") {
++                    Ok(definition) => definition,
++                    Err(error) => return Ok(json!({
++                        "valid": false,
++                        "errors": [error.to_string()],
++                        "warnings": []
++                    })),
++                };
++                let errors = self.engine.validate(&definition);
++                Ok(json!({
++                    "valid": errors.is_empty(),
++                    "pipeline": definition.name,
++                    "errors": errors,
++                    "warnings": []
++                }))
++            }
++            IpcRequest::PlanSpec { spec, from_step, only } => {
++                let raw = serde_yaml::to_value(&spec).map_err(internal)?;
++                let definition = load_pipeline_value(raw, "<ipc-spec>")
++                    .map_err(|error| ("SPEC_INVALID".into(), error.to_string()))?;
++                let order = self.engine.plan(&definition)
++                    .map_err(|errors| ("PIPELINE_INVALID".into(), errors.join("; ")))?;
++                let selected = select_requested_order(&order, from_step.as_deref(), &only)?;
++                Ok(json!({
++                    "valid": true,
++                    "pipeline": definition.name,
++                    "order": order,
++                    "selected": selected,
++                    "step_count": definition.steps.len()
++                }))
++            }
++            IpcRequest::SubmitSpec { spec, execute, approve, labels, max_workers, from_step, only } => {
++                let raw = serde_yaml::to_value(&spec).map_err(internal)?;
++                let definition = load_pipeline_value(raw, "<ipc-spec>")
++                    .map_err(|error| ("SPEC_INVALID".into(), error.to_string()))?;
++                let errors = self.engine.validate(&definition);
++                if !errors.is_empty() {
++                    return Err(("PIPELINE_INVALID".into(), errors.join("; ")));
++                }
++                let pipeline = definition.name.clone();
++                let run_id = self.make_run_id(&pipeline);
++                let snapshot_path = self.persist_spec_snapshot(&run_id, &spec).await
++                    .map_err(service_error)?;
++                let request = JobRequest {
++                    pipeline,
++                    execute,
++                    approve,
++                    labels,
++                    max_workers: max_workers.max(1),
++                    from_step,
++                    only,
++                };
++                let record = JobRecord::new(
++                    run_id.clone(),
++                    request,
++                    &self.runs_dir,
++                    &self.root,
++                    snapshot_path.display().to_string(),
++                );
++                if let Err(error) = self.put_job(record).await {
++                    let _ = tokio::fs::remove_file(&snapshot_path).await;
++                    return Err(service_error(error));
++                }
++                self.start_existing(run_id.clone(), false).await.map_err(service_error)?;
++                Ok(json!({"run_id": run_id, "status": "queued", "source": "structured-spec"}))
++            }
+             IpcRequest::Status { run_id } => {
+                 let record = self.get_job(&run_id).await.ok_or_else(|| not_found(&run_id))?;
+                 serde_json::to_value(record).map_err(internal)
+@@ -321,6 +390,23 @@
+         let tmp = run_dir.join(format!("pipeline.snapshot.yaml.tmp-{}", uuid::Uuid::new_v4().simple()));
+         let mut file = tokio::fs::File::create(&tmp).await.map_err(|error| error.to_string())?;
+         file.write_all(&bytes).await.map_err(|error| error.to_string())?;
++        file.flush().await.map_err(|error| error.to_string())?;
++        file.sync_all().await.map_err(|error| error.to_string())?;
++        drop(file);
++        tokio::fs::rename(&tmp, &path).await.map_err(|error| error.to_string())?;
++        if let Ok(dir) = std::fs::File::open(&run_dir) { let _ = dir.sync_all(); }
++        Ok(path)
++    }
++
++    async fn persist_spec_snapshot(&self, run_id: &str, spec: &Value) -> Result<PathBuf, String> {
++        use tokio::io::AsyncWriteExt;
++        let text = serde_yaml::to_string(spec).map_err(|error| error.to_string())?;
++        let run_dir = self.root.join(&self.runs_dir).join(run_id);
++        tokio::fs::create_dir_all(&run_dir).await.map_err(|error| error.to_string())?;
++        let path = run_dir.join("pipeline.snapshot.yaml");
++        let tmp = run_dir.join(format!("pipeline.snapshot.yaml.tmp-{}", uuid::Uuid::new_v4().simple()));
++        let mut file = tokio::fs::File::create(&tmp).await.map_err(|error| error.to_string())?;
++        file.write_all(text.as_bytes()).await.map_err(|error| error.to_string())?;
+         file.flush().await.map_err(|error| error.to_string())?;
+         file.sync_all().await.map_err(|error| error.to_string())?;
+         drop(file);
+@@ -603,6 +689,28 @@
+     }
+ }
+ 
++fn select_requested_order(
++    order: &[String],
++    from_step: Option<&str>,
++    only: &[String],
++) -> Result<Vec<String>, (String, String)> {
++    let mut selected = order.to_vec();
++    if let Some(from) = from_step {
++        let Some(position) = selected.iter().position(|id| id == from) else {
++            return Err(("FROM_STEP_NOT_FOUND".into(), format!("from_step not found: {from}")));
++        };
++        selected = selected[position..].to_vec();
++    }
++    if !only.is_empty() {
++        let missing = only.iter().filter(|id| !order.contains(id)).cloned().collect::<Vec<_>>();
++        if !missing.is_empty() {
++            return Err(("ONLY_STEP_NOT_FOUND".into(), format!("only references missing steps: {}", missing.join(", "))));
++        }
++        selected.retain(|id| only.contains(id));
++    }
++    Ok(selected)
++}
++
+ fn durable_copy(source: &Path, destination: &Path) -> std::io::Result<()> {
+     use std::io::Write;
+     if let Some(parent) = destination.parent() { std::fs::create_dir_all(parent)?; }
