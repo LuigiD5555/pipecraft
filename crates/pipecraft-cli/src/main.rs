@@ -895,11 +895,7 @@ fn cmd_run(
     Ok(if run.success { 0 } else { 1 })
 }
 
-fn cmd_run_many(
-    root: &Path,
-    pipelines: &[String],
-    options: RunManyOptions,
-) -> anyhow::Result<i32> {
+fn cmd_run_many(root: &Path, pipelines: &[String], options: RunManyOptions) -> anyhow::Result<i32> {
     let RunManyOptions {
         execute,
         approve,
@@ -1014,11 +1010,7 @@ fn cmd_run_many(
     Ok(if all_success { 0 } else { 1 })
 }
 
-fn cmd_run_labels(
-    root: &Path,
-    labels_text: &str,
-    options: RunOptions,
-) -> anyhow::Result<i32> {
+fn cmd_run_labels(root: &Path, labels_text: &str, options: RunOptions) -> anyhow::Result<i32> {
     let emit_json = options.emit_json;
     let ws = load_workspace(root)?;
     let routes = load_routes(root, Some(&ws))?;
