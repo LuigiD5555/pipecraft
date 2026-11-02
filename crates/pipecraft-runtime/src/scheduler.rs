@@ -15,7 +15,7 @@ use tokio::task::JoinSet;
 use pipecraft_core::model::{PipelineDefinition, PipelineStep};
 use pipecraft_report::{status, StepResult};
 
-use crate::admission::{ranked_ids, AdmissionPolicy, AdmissionSettings, WorkCandidate};
+use crate::admission::{decide, AdmissionPolicy, AdmissionSettings, AdmissionSnapshot, WorkCandidate};
 use crate::context::ExecutionContext;
 use crate::coordinator::RuntimeCoordinator;
 use crate::events::emit_event;
@@ -475,7 +475,7 @@ pub async fn schedule(
             })
             .map(|id| WorkCandidate {
                 id: id.clone(),
-                group: String::new(),
+                group: id.clone(),
                 priority: 0,
                 eligible_since_ms: 0,
                 ready_at_ms: 0,
@@ -489,17 +489,24 @@ pub async fn schedule(
                 group_limit: 1,
             })
             .collect::<Vec<_>>();
-        let legacy_ranking = AdmissionSettings {
+        let legacy_admission = AdmissionSettings {
             policy: AdmissionPolicy::Legacy,
             ..AdmissionSettings::default()
         };
-        let ready_indexes = ranked_ids(&ready_candidates, 0, &legacy_ranking, &BTreeMap::new());
-        let dispatch_order = ready_indexes
-            .iter()
-            .map(|&i| &ready_candidates[i].id)
-            .collect::<Vec<_>>();
+        let admission = decide(&AdmissionSnapshot {
+            revision: 0,
+            now_ms: 0,
+            candidates: ready_candidates,
+            active: vec![],
+            last_dispatch_ms: BTreeMap::new(),
+            settings: legacy_admission,
+            capacity: Some(order.len().max(1) as u32),
+            adaptive_capacity: None,
+        })
+        .expect("scheduler-generated admission snapshot must be valid");
+        let dispatch_order = admission.offered;
         let barrier_running = running.values().any(|barrier| *barrier);
-        for id in dispatch_order {
+        for id in &dispatch_order {
             if persistence_failed || ctx.cancellation.is_cancelled() {
                 break;
             }

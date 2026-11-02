@@ -427,6 +427,91 @@ mod tests {
         assert_eq!(loaded.status, JobStatus::Queued);
         assert_eq!(loaded.request.pipeline, "demo");
     }
+
+    #[tokio::test]
+    async fn external_reconcile_duplicate_commit_is_idempotent() {
+        use crate::protocol::{ExternalWorkState, ReplayDisposition};
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = ExternalRecoveryStore::new(dir.path().join("external-recovery"));
+        let observation = ExternalReconcileObservation::new(ExternalReconcileInput {
+            work_id: "HTTP_JOB:19".into(),
+            operation_key: "http-job-19/fetch".into(),
+            attempt_id: Some("attempt-1".into()),
+            claim_epoch: Some(9),
+            leadership_epoch: Some(3),
+            receipt_id: Some("receipt-http-19".into()),
+            observed_state: ExternalWorkState::SucceededVerified,
+            replay: ReplayDisposition::ReceiptAlreadyCommitted,
+        })
+        .unwrap();
+
+        store.observe(&observation).await.unwrap();
+        store.observe(&observation).await.unwrap();
+
+        let loaded = store
+            .load("HTTP_JOB:19", "http-job-19/fetch")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.receipt_id, observation.receipt_id);
+        assert_eq!(loaded.claim_epoch, Some(9));
+        assert_eq!(loaded.leadership_epoch, Some(3));
+    }
+
+    #[tokio::test]
+    async fn corrupt_reconcile_record_fails_closed() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ExternalRecoveryStore::new(dir.path().join("external-recovery"));
+        store.prepare().await.unwrap();
+        let path = store.path("EXTRACTOR_RUN:5", "extractor-run-5/capture");
+        tokio::fs::write(&path, b"{not-json").await.unwrap();
+
+        let error = store
+            .load("EXTRACTOR_RUN:5", "extractor-run-5/capture")
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn crash_temp_file_never_replaces_committed_receipt() {
+        use crate::protocol::{ExternalWorkState, ReplayDisposition};
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = ExternalRecoveryStore::new(dir.path().join("external-recovery"));
+        let committed = ExternalReconcileObservation::new(ExternalReconcileInput {
+            work_id: "ACQUISITION_RUN:77".into(),
+            operation_key: "acquisition-run-77/fetch".into(),
+            attempt_id: Some("attempt-4".into()),
+            claim_epoch: Some(14),
+            leadership_epoch: Some(6),
+            receipt_id: Some("receipt-acq-77".into()),
+            observed_state: ExternalWorkState::SucceededVerified,
+            replay: ReplayDisposition::ReceiptAlreadyCommitted,
+        })
+        .unwrap();
+        store.observe(&committed).await.unwrap();
+
+        let stable = store.path("ACQUISITION_RUN:77", "acquisition-run-77/fetch");
+        let orphan = stable.with_extension("json.tmp-crash-window");
+        tokio::fs::write(
+            &orphan,
+            br#"{"receipt_id":"receipt-unsafe","claim_epoch":999}"#,
+        )
+        .await
+        .unwrap();
+
+        let loaded = store
+            .load("ACQUISITION_RUN:77", "acquisition-run-77/fetch")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.receipt_id.as_deref(), Some("receipt-acq-77"));
+        assert_eq!(loaded.claim_epoch, Some(14));
+        assert!(tokio::fs::try_exists(orphan).await.unwrap());
+    }
+
     #[tokio::test]
     async fn external_reconcile_store_rejects_stale_epochs_and_receipt_conflicts() {
         use crate::protocol::{ExternalWorkState, ReplayDisposition};
