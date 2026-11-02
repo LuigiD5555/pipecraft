@@ -1,6 +1,6 @@
 //! Deterministic, side-effect-free admission decisions for DAG steps and external providers.
 //!
-//! This module computes *proposals*. It never claims a job or authorizes an
+//! G2a deterministic admission contract.\n//! This module computes *proposals*. It never claims a job or authorizes an
 //! external side effect. An external provider must independently confirm an
 //! offer through its durable, fenced transaction before executing anything.
 
