@@ -145,6 +145,16 @@ pub struct BlockedCandidate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DecisionTrace {
+    pub id: String,
+    pub rank: usize,
+    pub effective_priority: i64,
+    pub eligible_since_ms: u64,
+    pub last_dispatch_ms: u64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdmissionDecision {
     pub revision: u64,
     pub offered: Vec<String>,
@@ -152,8 +162,23 @@ pub struct AdmissionDecision {
     pub capacity_used: u32,
     pub capacity_total: u32,
     pub next_wakeup_at_ms: Option<u64>,
+    pub decision_trace: Vec<DecisionTrace>,
     /// Offers are advisory and have NOT acquired leases or effects.
     pub requires_confirmation: bool,
+}
+
+fn eligible_since(candidate: &WorkCandidate) -> u64 {
+    if candidate.eligible_since_ms == 0 {
+        candidate.ready_at_ms
+    } else {
+        candidate.eligible_since_ms
+    }
+}
+
+fn effective_priority(candidate: &WorkCandidate, now_ms: u64, aging_ms: u64) -> i64 {
+    let elapsed = now_ms.saturating_sub(eligible_since(candidate));
+    let aged = elapsed / aging_ms.max(1);
+    i64::from(candidate.priority).saturating_sub(aged.min(i64::MAX as u64) as i64)
 }
 
 /// A stable comparator shared by DAG-ready nodes and external work candidates.
@@ -171,18 +196,8 @@ pub fn ranked_ids(
     indexes.sort_by(|&a, &b| {
         let x = &candidates[a];
         let y = &candidates[b];
-        let effective = |unit: &WorkCandidate| -> i64 {
-            let eligible_since = if unit.eligible_since_ms == 0 {
-                unit.ready_at_ms
-            } else {
-                unit.eligible_since_ms
-            };
-            let elapsed = now_ms.saturating_sub(eligible_since);
-            let aged = elapsed / settings.aging_ms.max(1);
-            i64::from(unit.priority).saturating_sub(aged.min(i64::MAX as u64) as i64)
-        };
-        effective(x)
-            .cmp(&effective(y))
+        effective_priority(x, now_ms, settings.aging_ms)
+            .cmp(&effective_priority(y, now_ms, settings.aging_ms))
             .then_with(|| {
                 dispatch_history
                     .get(&x.group)
@@ -259,19 +274,35 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
         &snapshot.settings,
         &snapshot.last_dispatch_ms,
     );
-    let heavy_waiting = snapshot.candidates.iter().any(|c| {
-        c.weight > capacity.saturating_sub(used)
-            && c.hard_block.is_none()
-            && c.dependencies_met
-            && c.ready_at_ms <= snapshot.now_ms
-            && c.not_before_ms.unwrap_or(0) <= snapshot.now_ms
-            && snapshot.now_ms.saturating_sub(if c.eligible_since_ms == 0 {
-                c.ready_at_ms
+    let available_before_offers = capacity.saturating_sub(used);
+    let mut protected_heavy = BTreeSet::new();
+    for candidate in &snapshot.candidates {
+        let gate = candidate.ready_at_ms.max(candidate.not_before_ms.unwrap_or(0));
+        let feasible_when_idle =
+            candidate.weight <= capacity || snapshot.settings.allow_idle_overweight;
+        let capacity_blocked = candidate.weight > available_before_offers;
+        let group_blocked = active
+            .iter()
+            .filter(|claim| claim.group == candidate.group)
+            .count() as u32
+            >= candidate.group_limit;
+        let otherwise_eligible = candidate.hard_block.is_none()
+            && candidate.dependencies_met
+            && gate <= snapshot.now_ms
+            && !group_blocked
+            && !conflicts(candidate, &active);
+        if feasible_when_idle && capacity_blocked && otherwise_eligible {
+            let guard_at = eligible_since(candidate)
+                .saturating_add(snapshot.settings.heavy_wait_guard_ms);
+            if guard_at <= snapshot.now_ms {
+                protected_heavy.insert(candidate.id.clone());
             } else {
-                c.eligible_since_ms
-            }) >= snapshot.settings.heavy_wait_guard_ms
-    });
-    for index in order {
+                next_wakeup = Some(next_wakeup.map_or(guard_at, |old| old.min(guard_at)));
+            }
+        }
+    }
+    let mut decision_trace = Vec::with_capacity(snapshot.candidates.len());
+    for (rank, index) in order.into_iter().enumerate() {
         let unit = &snapshot.candidates[index];
         let gate = unit.ready_at_ms.max(unit.not_before_ms.unwrap_or(0));
         let reason = if !unit.dependencies_met {
@@ -290,18 +321,52 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
             && !(snapshot.settings.allow_idle_overweight && used == 0 && offered.is_empty())
         {
             Some("CAPACITY_BUSY")
-        } else if heavy_waiting && unit.weight < capacity && used > 0 {
+        } else if !protected_heavy.is_empty()
+            && !protected_heavy.contains(&unit.id)
+            && unit.weight < capacity
+            && used > 0
+        {
             Some("HEAVY_BACKFILL_GUARD")
         } else {
             None
         };
         if let Some(reason) = reason {
-            reasons.insert(
-                unit.id.clone(),
-                unit.hard_block.clone().unwrap_or_else(|| reason.into()),
-            );
+            let final_reason = unit.hard_block.clone().unwrap_or_else(|| reason.into());
+            reasons.insert(unit.id.clone(), final_reason.clone());
+            decision_trace.push(DecisionTrace {
+                id: unit.id.clone(),
+                rank,
+                effective_priority: effective_priority(
+                    unit,
+                    snapshot.now_ms,
+                    snapshot.settings.aging_ms,
+                ),
+                eligible_since_ms: eligible_since(unit),
+                last_dispatch_ms: snapshot
+                    .last_dispatch_ms
+                    .get(&unit.group)
+                    .copied()
+                    .unwrap_or(0),
+                reason: final_reason,
+            });
             continue;
         }
+        decision_trace.push(DecisionTrace {
+            id: unit.id.clone(),
+            rank,
+            effective_priority: effective_priority(
+                unit,
+                snapshot.now_ms,
+                snapshot.settings.aging_ms,
+            ),
+            eligible_since_ms: eligible_since(unit),
+            last_dispatch_ms: snapshot
+                .last_dispatch_ms
+                .get(&unit.group)
+                .copied()
+                .unwrap_or(0),
+            reason: "OFFERED".into(),
+        });
         used = used.saturating_add(unit.weight);
         offered.push(unit.id.clone());
         active.push(ActiveClaim {
@@ -330,6 +395,7 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
         capacity_used: used,
         capacity_total: capacity,
         next_wakeup_at_ms: next_wakeup,
+        decision_trace,
         requires_confirmation: true,
     })
 }
@@ -468,6 +534,59 @@ mod tests {
         assert!(result.offered.is_empty());
         assert_eq!(result.blocked[0].reason, "CAPACITY_BUSY");
         assert_eq!(result.blocked[1].reason, "HEAVY_BACKFILL_GUARD");
+    }
+
+    #[test]
+    fn impossible_heavy_work_does_not_reserve_capacity_forever() {
+        let mut impossible = work("impossible", "heavy", 9);
+        impossible.eligible_since_ms = 1_000;
+        let light_a = work("light-a", "a", 1);
+        let light_b = work("light-b", "b", 1);
+        let mut s = snap(vec![impossible, light_a, light_b]);
+        s.now_ms = 10_000;
+        s.capacity = Some(4);
+        s.settings.heavy_wait_guard_ms = 1_000;
+
+        let result = decide(&s).unwrap();
+        assert_eq!(result.offered, vec!["light-a", "light-b"]);
+        assert_eq!(
+            result
+                .blocked
+                .iter()
+                .find(|item| item.id == "impossible")
+                .unwrap()
+                .reason,
+            "CAPACITY_BUSY"
+        );
+        assert!(!result
+            .blocked
+            .iter()
+            .any(|item| item.reason == "HEAVY_BACKFILL_GUARD"));
+    }
+
+    #[test]
+    fn heavy_guard_exposes_exact_activation_wakeup_and_trace() {
+        let mut heavy = work("heavy", "heavy", 4);
+        heavy.eligible_since_ms = 9_000;
+        let light = work("light", "light", 1);
+        let mut s = snap(vec![heavy, light]);
+        s.now_ms = 10_000;
+        s.capacity = Some(4);
+        s.settings.heavy_wait_guard_ms = 2_000;
+        s.active.push(ActiveClaim {
+            id: "active".into(),
+            group: "active".into(),
+            weight: 1,
+            scopes: vec![],
+            exclusive_resources: vec![],
+            shared_resources: vec![],
+        });
+
+        let result = decide(&s).unwrap();
+        assert_eq!(result.next_wakeup_at_ms, Some(11_000));
+        assert_eq!(result.decision_trace.len(), 2);
+        assert_eq!(result.decision_trace[0].id, "heavy");
+        assert_eq!(result.decision_trace[0].reason, "CAPACITY_BUSY");
     }
 
     #[test]
