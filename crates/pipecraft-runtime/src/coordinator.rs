@@ -68,7 +68,6 @@ impl RuntimeCoordinator {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

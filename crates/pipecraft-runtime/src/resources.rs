@@ -146,10 +146,7 @@ impl GlobalResourceManager {
 
         let mut blocked = false;
         for demand in demands {
-            let entry = state
-                .named
-                .entry(demand.resource_key.clone())
-                .or_default();
+            let entry = state.named.entry(demand.resource_key.clone()).or_default();
 
             if let Some(limit) = entry.limit {
                 if limit != demand.limit {
@@ -188,21 +185,21 @@ impl GlobalResourceManager {
         }
 
         for demand in demands {
-            let entry = state
-                .named
-                .entry(demand.resource_key.clone())
-                .or_default();
+            let entry = state.named.entry(demand.resource_key.clone()).or_default();
             entry.limit.get_or_insert(demand.limit);
             match demand.share_mode {
                 ResourceShareMode::Exclusive => {
-                    if entry.waiting_exclusive.front().is_some_and(|front| front == owner) {
+                    if entry
+                        .waiting_exclusive
+                        .front()
+                        .is_some_and(|front| front == owner)
+                    {
                         entry.waiting_exclusive.pop_front();
                     }
                     entry.exclusive = true;
                 }
                 ResourceShareMode::Shared => {
-                    entry.shared_quantity =
-                        entry.shared_quantity.saturating_add(demand.quantity);
+                    entry.shared_quantity = entry.shared_quantity.saturating_add(demand.quantity);
                 }
             }
         }
@@ -313,7 +310,11 @@ impl GlobalResourceManager {
 }
 
 fn demand_points(demands: &[ResourceDemand]) -> u32 {
-    demands.iter().map(|demand| demand.points).max().unwrap_or(0)
+    demands
+        .iter()
+        .map(|demand| demand.points)
+        .max()
+        .unwrap_or(0)
 }
 
 fn validate_request(owner: &str, demands: &[ResourceDemand]) -> Result<(), String> {
@@ -388,10 +389,7 @@ mod tests {
     fn weighted_points_prevent_oversubscription() {
         let resources = GlobalResourceManager::with_point_capacity(4);
         let first = resources
-            .try_acquire_demands(
-                "one",
-                &[demand("cpu", 3, 1, ResourceShareMode::Shared, 4)],
-            )
+            .try_acquire_demands("one", &[demand("cpu", 3, 1, ResourceShareMode::Shared, 4)])
             .unwrap()
             .unwrap();
         assert!(resources

@@ -277,7 +277,9 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
     let available_before_offers = capacity.saturating_sub(used);
     let mut protected_heavy = BTreeSet::new();
     for candidate in &snapshot.candidates {
-        let gate = candidate.ready_at_ms.max(candidate.not_before_ms.unwrap_or(0));
+        let gate = candidate
+            .ready_at_ms
+            .max(candidate.not_before_ms.unwrap_or(0));
         let feasible_when_idle =
             candidate.weight <= capacity || snapshot.settings.allow_idle_overweight;
         let capacity_blocked = candidate.weight > available_before_offers;
@@ -292,8 +294,8 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
             && !group_blocked
             && !conflicts(candidate, &active);
         if feasible_when_idle && capacity_blocked && otherwise_eligible {
-            let guard_at = eligible_since(candidate)
-                .saturating_add(snapshot.settings.heavy_wait_guard_ms);
+            let guard_at =
+                eligible_since(candidate).saturating_add(snapshot.settings.heavy_wait_guard_ms);
             if guard_at <= snapshot.now_ms {
                 protected_heavy.insert(candidate.id.clone());
             } else {
