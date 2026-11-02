@@ -15,6 +15,7 @@ impl WorkspaceRuntimeLock {
         let path = runtime_dir.join("service.lock");
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .open(&path)
