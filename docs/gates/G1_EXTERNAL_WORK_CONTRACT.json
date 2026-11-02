@@ -1,0 +1,37 @@
+{
+  "schema_version": "pipecraft.gate/v1",
+  "gate": "G1",
+  "title": "External-work contract and P0 ADR acceptance",
+  "status": "PASS_CANDIDATE",
+  "prerequisites": [
+    "C01",
+    "C02",
+    "C03"
+  ],
+  "accepted_adrs": [
+    "ADR-01",
+    "ADR-03",
+    "ADR-04",
+    "ADR-05",
+    "ADR-12"
+  ],
+  "artifacts": [
+    "schemas/external-work-v1.schema.json",
+    "tests/golden/external-work-v1-contract.json",
+    "tests/golden/g1-external-work-acceptance.json",
+    "docs/adrs/ADR-01-external-provider-transport.md",
+    "docs/adrs/ADR-03-unified-resource-semantics.md",
+    "docs/adrs/ADR-04-durable-claim-owner.md",
+    "docs/adrs/ADR-05-leader-fencing.md",
+    "docs/adrs/ADR-12-api-compatibility.md"
+  ],
+  "invariants": [
+    "legacy IPC remains compatible",
+    "external-work contract is capability-negotiated",
+    "contract simulation has no side effects",
+    "PostgreSQL owns durable claim and leader epochs",
+    "UNCERTAIN is never automatically replayed",
+    "no PipeCraft claim ledger duplicates domain authority"
+  ],
+  "cutover_enabled": false
+}

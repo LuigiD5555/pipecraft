@@ -1,0 +1,39 @@
+{
+  "schema_version": "pipecraft.g1.acceptance/v1",
+  "gate": "G1",
+  "accepted_adrs": {
+    "ADR-01": "provider-driven existing Unix IPC; no arbitrary callbacks",
+    "ADR-03": "typed weighted/quantity shared/exclusive resources; one target runtime ledger",
+    "ADR-04": "PostgreSQL owns durable external-work claim",
+    "ADR-05": "PostgreSQL leadership_epoch fences installation leadership",
+    "ADR-12": "legacy pipecraft.ipc/v1 unchanged; external-work/v1 optional"
+  },
+  "protocol": {
+    "legacy": "pipecraft.ipc/v1",
+    "external": "pipecraft.external-work/v1",
+    "capability": "external_work_contract_v1",
+    "contract_only": true,
+    "side_effects": false
+  },
+  "authority": {
+    "scheduler_target": "PipeCraft",
+    "durable_claim": "PostgreSQL",
+    "leadership_epoch": "PostgreSQL",
+    "claim_epoch": "PostgreSQL",
+    "owner_token": "sensitive/write-only",
+    "browser_physical_occupancy": "Extracta"
+  },
+  "replay": {
+    "uncertain_auto_retry": false,
+    "receipt_authoritative": true,
+    "dispositions": [
+      "SAFE_TO_REPLAY",
+      "RECEIPT_ALREADY_COMMITTED",
+      "RECONCILIATION_REQUIRED",
+      "FORBIDDEN_UNCERTAIN",
+      "STALE_FENCE"
+    ]
+  },
+  "accepted_contract_sha": "ff990f8f58ec62106f6e15c04bf8c8ee3196dd4f",
+  "accepted_ci_run": 41537252865
+}
