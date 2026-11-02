@@ -44,6 +44,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: pipecraft-rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            pipecraft-rust-${{ runner.os }}-
       - name: Verify source structure
         run: python3 scripts/check_release_sources.py
       - name: Verify committed lockfile
