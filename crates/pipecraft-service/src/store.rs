@@ -208,36 +208,41 @@ pub struct ExternalReconcileObservation {
     pub observed_at: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ExternalReconcileInput {
+    pub work_id: String,
+    pub operation_key: String,
+    pub attempt_id: Option<String>,
+    pub claim_epoch: Option<u64>,
+    pub leadership_epoch: Option<u64>,
+    pub receipt_id: Option<String>,
+    pub observed_state: ExternalWorkState,
+    pub replay: ReplayDisposition,
+}
+
 impl ExternalReconcileObservation {
-    pub fn new(
-        work_id: String,
-        operation_key: String,
-        attempt_id: Option<String>,
-        claim_epoch: Option<u64>,
-        leadership_epoch: Option<u64>,
-        receipt_id: Option<String>,
-        observed_state: ExternalWorkState,
-        replay: ReplayDisposition,
-    ) -> Result<Self, String> {
-        if work_id.trim().is_empty() || operation_key.trim().is_empty() {
+    pub fn new(input: ExternalReconcileInput) -> Result<Self, String> {
+        if input.work_id.trim().is_empty() || input.operation_key.trim().is_empty() {
             return Err("external reconcile work_id and operation_key must be non-empty".into());
         }
-        if claim_epoch == Some(0) || leadership_epoch == Some(0) {
+        if input.claim_epoch == Some(0) || input.leadership_epoch == Some(0) {
             return Err("external reconcile epochs must be positive when present".into());
         }
-        if matches!(replay, ReplayDisposition::ReceiptAlreadyCommitted) && receipt_id.is_none() {
+        if matches!(input.replay, ReplayDisposition::ReceiptAlreadyCommitted)
+            && input.receipt_id.is_none()
+        {
             return Err("RECEIPT_ALREADY_COMMITTED requires receipt_id".into());
         }
         Ok(Self {
             protocol: "pipecraft.external-reconcile-observation/v1".into(),
-            work_id,
-            operation_key,
-            attempt_id,
-            claim_epoch,
-            leadership_epoch,
-            receipt_id,
-            observed_state,
-            replay,
+            work_id: input.work_id,
+            operation_key: input.operation_key,
+            attempt_id: input.attempt_id,
+            claim_epoch: input.claim_epoch,
+            leadership_epoch: input.leadership_epoch,
+            receipt_id: input.receipt_id,
+            observed_state: input.observed_state,
+            replay: input.replay,
             observed_at: Utc::now().to_rfc3339(),
         })
     }
@@ -428,16 +433,16 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let store = ExternalRecoveryStore::new(dir.path().join("external-recovery"));
-        let committed = ExternalReconcileObservation::new(
-            "EXTRACTOR_RUN:821".into(),
-            "extractor-run-821/capture/primary".into(),
-            Some("attempt-2".into()),
-            Some(22),
-            Some(7),
-            Some("receipt-991".into()),
-            ExternalWorkState::SucceededVerified,
-            ReplayDisposition::ReceiptAlreadyCommitted,
-        )
+        let committed = ExternalReconcileObservation::new(ExternalReconcileInput {
+            work_id: "EXTRACTOR_RUN:821".into(),
+            operation_key: "extractor-run-821/capture/primary".into(),
+            attempt_id: Some("attempt-2".into()),
+            claim_epoch: Some(22),
+            leadership_epoch: Some(7),
+            receipt_id: Some("receipt-991".into()),
+            observed_state: ExternalWorkState::SucceededVerified,
+            replay: ReplayDisposition::ReceiptAlreadyCommitted,
+        })
         .unwrap();
         store.observe(&committed).await.unwrap();
 
@@ -448,16 +453,16 @@ mod tests {
             .unwrap();
         assert_eq!(loaded.receipt_id.as_deref(), Some("receipt-991"));
 
-        let stale = ExternalReconcileObservation::new(
-            "EXTRACTOR_RUN:821".into(),
-            "extractor-run-821/capture/primary".into(),
-            Some("attempt-3".into()),
-            Some(21),
-            Some(7),
-            Some("receipt-991".into()),
-            ExternalWorkState::SucceededVerified,
-            ReplayDisposition::ReceiptAlreadyCommitted,
-        )
+        let stale = ExternalReconcileObservation::new(ExternalReconcileInput {
+            work_id: "EXTRACTOR_RUN:821".into(),
+            operation_key: "extractor-run-821/capture/primary".into(),
+            attempt_id: Some("attempt-3".into()),
+            claim_epoch: Some(21),
+            leadership_epoch: Some(7),
+            receipt_id: Some("receipt-991".into()),
+            observed_state: ExternalWorkState::SucceededVerified,
+            replay: ReplayDisposition::ReceiptAlreadyCommitted,
+        })
         .unwrap();
         assert!(store
             .observe(&stale)
@@ -465,16 +470,16 @@ mod tests {
             .unwrap_err()
             .contains("stale claim_epoch"));
 
-        let conflicting = ExternalReconcileObservation::new(
-            "EXTRACTOR_RUN:821".into(),
-            "extractor-run-821/capture/primary".into(),
-            Some("attempt-3".into()),
-            Some(23),
-            Some(8),
-            Some("receipt-other".into()),
-            ExternalWorkState::SucceededVerified,
-            ReplayDisposition::ReceiptAlreadyCommitted,
-        )
+        let conflicting = ExternalReconcileObservation::new(ExternalReconcileInput {
+            work_id: "EXTRACTOR_RUN:821".into(),
+            operation_key: "extractor-run-821/capture/primary".into(),
+            attempt_id: Some("attempt-3".into()),
+            claim_epoch: Some(23),
+            leadership_epoch: Some(8),
+            receipt_id: Some("receipt-other".into()),
+            observed_state: ExternalWorkState::SucceededVerified,
+            replay: ReplayDisposition::ReceiptAlreadyCommitted,
+        })
         .unwrap();
         assert!(store
             .observe(&conflicting)
