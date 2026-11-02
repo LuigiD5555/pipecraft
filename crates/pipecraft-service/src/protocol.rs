@@ -85,16 +85,16 @@ pub struct ExternalWorkCandidate {
     pub priority: i64,
     pub eligible_since_ms: u64,
     pub ready_at_ms: u64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_before_ms: Option<u64>,
     pub weight: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hard_block: Option<String>,
     #[serde(default)]
     pub scopes: Vec<String>,
     #[serde(default)]
     pub resources: Vec<ExternalResourceDemand>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub required_worker_capability: Option<String>,
     pub source_limit: u32,
 }
@@ -161,13 +161,13 @@ pub enum ExternalWorkMessage {
         work_id: String,
         snapshot_revision: u64,
         result: OfferConfirmationResult,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         claim_epoch: Option<u64>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         claim_id: Option<String>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         lease_until_ms: Option<u64>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         assigned_worker_capability: Option<String>,
         #[serde(default)]
         operation_keys: Vec<String>,
@@ -178,11 +178,11 @@ pub enum ExternalWorkMessage {
         installation_id: String,
         provider_id: String,
         work_id: String,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         attempt_id: Option<String>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         claim_epoch: Option<u64>,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         receipt_id: Option<String>,
         observed_state: ExternalWorkState,
         replay: ReplayDisposition,
@@ -196,10 +196,10 @@ pub enum ExternalWorkMessage {
         attempt_id: String,
         claim_epoch: u64,
         status: ExternalOutcomeStatus,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         receipt_id: Option<String>,
         operation_key: String,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         result_digest: Option<String>,
     },
 }
