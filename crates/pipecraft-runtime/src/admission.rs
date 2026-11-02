@@ -74,6 +74,8 @@ pub struct WorkCandidate {
     #[serde(default)]
     pub priority: i32,
     #[serde(default)]
+    pub eligible_since_ms: u64,
+    #[serde(default)]
     pub ready_at_ms: u64,
     #[serde(default)]
     pub not_before_ms: Option<u64>,
@@ -170,7 +172,12 @@ pub fn ranked_ids(
         let x = &candidates[a];
         let y = &candidates[b];
         let effective = |unit: &WorkCandidate| -> i64 {
-            let elapsed = now_ms.saturating_sub(unit.ready_at_ms);
+            let eligible_since = if unit.eligible_since_ms == 0 {
+                unit.ready_at_ms
+            } else {
+                unit.eligible_since_ms
+            };
+            let elapsed = now_ms.saturating_sub(eligible_since);
             let aged = elapsed / settings.aging_ms.max(1);
             i64::from(unit.priority).saturating_sub(aged.min(i64::MAX as u64) as i64)
         };
@@ -258,8 +265,11 @@ pub fn decide(snapshot: &AdmissionSnapshot) -> Result<AdmissionDecision, String>
             && c.dependencies_met
             && c.ready_at_ms <= snapshot.now_ms
             && c.not_before_ms.unwrap_or(0) <= snapshot.now_ms
-            && snapshot.now_ms.saturating_sub(c.ready_at_ms)
-                >= snapshot.settings.heavy_wait_guard_ms
+            && snapshot.now_ms.saturating_sub(if c.eligible_since_ms == 0 {
+                c.ready_at_ms
+            } else {
+                c.eligible_since_ms
+            }) >= snapshot.settings.heavy_wait_guard_ms
     });
     for index in order {
         let unit = &snapshot.candidates[index];
@@ -332,6 +342,7 @@ mod tests {
             id: id.into(),
             group: group.into(),
             priority: 100,
+            eligible_since_ms: 1000,
             ready_at_ms: 1000,
             not_before_ms: None,
             weight,
@@ -406,6 +417,59 @@ mod tests {
         assert!(result.offered.is_empty());
         assert_eq!(result.blocked[0].reason, "RESOURCE_BUSY");
     }
+    #[test]
+    fn aging_starts_at_eligible_since_not_ready_at() {
+        let mut older_eligible = work("older", "group-a", 1);
+        older_eligible.priority = 110;
+        older_eligible.ready_at_ms = 9_000;
+        older_eligible.eligible_since_ms = 1_000;
+
+        let mut newer_eligible = work("newer", "group-b", 1);
+        newer_eligible.priority = 100;
+        newer_eligible.ready_at_ms = 1_000;
+        newer_eligible.eligible_since_ms = 9_000;
+
+        let mut s = snap(vec![newer_eligible, older_eligible]);
+        s.now_ms = 10_000;
+        s.settings.aging_ms = 1_000;
+        s.capacity = Some(1);
+
+        let result = decide(&s).unwrap();
+        assert_eq!(result.offered, vec!["older"]);
+    }
+
+    #[test]
+    fn heavy_guard_uses_eligible_since_not_ready_at() {
+        let mut heavy = work("heavy", "heavy", 4);
+        heavy.ready_at_ms = 1_000;
+        heavy.eligible_since_ms = 9_500;
+
+        let light = work("light", "light", 1);
+        let mut s = snap(vec![heavy.clone(), light.clone()]);
+        s.now_ms = 10_000;
+        s.settings.heavy_wait_guard_ms = 2_000;
+        s.capacity = Some(4);
+        assert_eq!(decide(&s).unwrap().offered, vec!["heavy"]);
+
+        heavy.eligible_since_ms = 1_000;
+        let mut s = snap(vec![heavy, light]);
+        s.now_ms = 10_000;
+        s.settings.heavy_wait_guard_ms = 2_000;
+        s.capacity = Some(4);
+        s.active.push(ActiveClaim {
+            id: "active".into(),
+            group: "active".into(),
+            weight: 1,
+            scopes: vec![],
+            exclusive_resources: vec![],
+            shared_resources: vec![],
+        });
+        let result = decide(&s).unwrap();
+        assert!(result.offered.is_empty());
+        assert_eq!(result.blocked[0].reason, "CAPACITY_BUSY");
+        assert_eq!(result.blocked[1].reason, "HEAVY_BACKFILL_GUARD");
+    }
+
     #[test]
     fn legacy_keeps_order() {
         let mut s = snap(vec![work("z", "z", 1), work("a", "a", 1)]);
