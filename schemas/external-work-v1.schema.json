@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pipecraft.local/schemas/external-work-v1.schema.json",
+  "title": "PipeCraft external-work v1 canonical semantic types",
+  "description": "Reusable identity, lifecycle, outcome and semantic error definitions. Transport messages are added by later contract nodes.",
+  "$defs": {
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 192,
+      "pattern": "^[A-Z][A-Z0-9_]*:[A-Za-z0-9._:-]+$"
+    },
+    "pipeline_run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192
+    },
+    "attempt_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "offer_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "claim_epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "leadership_epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "owner_token": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 512,
+      "writeOnly": true,
+      "x-sensitive": true
+    },
+    "operation_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "snapshot_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "work_state": {
+      "type": "string",
+      "enum": [
+        "QUEUED",
+        "BLOCKED",
+        "OFFERED",
+        "CLAIMED",
+        "RUNNING",
+        "SUCCEEDED_VERIFIED",
+        "DEFERRED",
+        "NEEDS_HUMAN",
+        "FAILED_RETRYABLE",
+        "FAILED_FINAL",
+        "CANCELLED",
+        "UNCERTAIN",
+        "LEASE_EXPIRED"
+      ]
+    },
+    "offer_confirmation_result": {
+      "type": "string",
+      "enum": [
+        "CONFIRMED",
+        "STALE_OFFER",
+        "STALE_SNAPSHOT",
+        "POLICY_BLOCKED",
+        "SOURCE_BUSY",
+        "SCOPE_BUSY",
+        "NOT_FOUND",
+        "NO_PRIMARY",
+        "RECONCILIATION_REQUIRED"
+      ]
+    },
+    "verified_outcome_status": {
+      "type": "string",
+      "enum": [
+        "SUCCEEDED_VERIFIED",
+        "DEFERRED",
+        "NEEDS_HUMAN",
+        "FAILED_RETRYABLE",
+        "FAILED_FINAL",
+        "CANCELLED",
+        "UNCERTAIN"
+      ]
+    },
+    "semantic_error_code": {
+      "type": "string",
+      "enum": [
+        "STALE_OFFER",
+        "STALE_SNAPSHOT",
+        "POLICY_BLOCKED",
+        "SOURCE_BUSY",
+        "SCOPE_BUSY",
+        "NOT_FOUND",
+        "NO_PRIMARY",
+        "RECONCILIATION_REQUIRED",
+        "BAD_RESOURCE_REQUEST",
+        "RESOURCE_BUSY",
+        "WORKER_CAPABILITY_UNAVAILABLE",
+        "HEAVY_BACKFILL_RESERVED",
+        "CAPACITY_BUSY"
+      ]
+    }
+  }
+}

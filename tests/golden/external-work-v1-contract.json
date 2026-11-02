@@ -1,0 +1,66 @@
+{
+  "protocol": "pipecraft.external-work/v1",
+  "identities": {
+    "installation_id": "install-demo",
+    "provider_id": "extracta/acquisition/v1",
+    "work_id": "EXTRACTOR_RUN:821",
+    "pipeline_run_id": "20261102T220000Z-demo-deadbeef",
+    "attempt_id": "attempt-02",
+    "offer_id": "offer-92cd",
+    "claim_epoch": 22,
+    "leadership_epoch": 15,
+    "operation_key": "extractor-run-821/capture/primary",
+    "receipt_id": "receipt-991",
+    "snapshot_revision": 1009
+  },
+  "work_states": [
+    "QUEUED",
+    "BLOCKED",
+    "OFFERED",
+    "CLAIMED",
+    "RUNNING",
+    "SUCCEEDED_VERIFIED",
+    "DEFERRED",
+    "NEEDS_HUMAN",
+    "FAILED_RETRYABLE",
+    "FAILED_FINAL",
+    "CANCELLED",
+    "UNCERTAIN",
+    "LEASE_EXPIRED"
+  ],
+  "offer_confirmation_results": [
+    "CONFIRMED",
+    "STALE_OFFER",
+    "STALE_SNAPSHOT",
+    "POLICY_BLOCKED",
+    "SOURCE_BUSY",
+    "SCOPE_BUSY",
+    "NOT_FOUND",
+    "NO_PRIMARY",
+    "RECONCILIATION_REQUIRED"
+  ],
+  "verified_outcome_statuses": [
+    "SUCCEEDED_VERIFIED",
+    "DEFERRED",
+    "NEEDS_HUMAN",
+    "FAILED_RETRYABLE",
+    "FAILED_FINAL",
+    "CANCELLED",
+    "UNCERTAIN"
+  ],
+  "semantic_error_codes": [
+    "STALE_OFFER",
+    "STALE_SNAPSHOT",
+    "POLICY_BLOCKED",
+    "SOURCE_BUSY",
+    "SCOPE_BUSY",
+    "NOT_FOUND",
+    "NO_PRIMARY",
+    "RECONCILIATION_REQUIRED",
+    "BAD_RESOURCE_REQUEST",
+    "RESOURCE_BUSY",
+    "WORKER_CAPABILITY_UNAVAILABLE",
+    "HEAVY_BACKFILL_RESERVED",
+    "CAPACITY_BUSY"
+  ]
+}
