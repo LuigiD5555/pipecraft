@@ -73,3 +73,35 @@ def test_inline_spec_and_admission_use_structured_ipc(monkeypatch, tmp_path):
     assert result["requires_confirmation"] is True
     assert [item["op"] for item in requests] == ["validate_spec", "plan_spec", "submit_spec", "plan_admission"]
 
+
+
+def test_external_work_contract_uses_structured_ipc_without_side_effects(monkeypatch, tmp_path):
+    pc = PipeCraft(tmp_path)
+    requests = []
+
+    def capture(payload):
+        requests.append(payload)
+        return {
+            "protocol": "pipecraft.external-work/v1",
+            "simulated": True,
+            "side_effects": False,
+            "message": payload["message"],
+        }
+
+    monkeypatch.setattr(pc, "_ipc", capture)
+    message = {
+        "op": "provider_snapshot",
+        "protocol": "pipecraft.external-work/v1",
+        "request_id": "req-python-1",
+        "installation_id": "install-demo",
+        "provider_id": "extracta/acquisition/v1",
+        "snapshot_revision": 1,
+        "observed_at_ms": 100,
+        "work": [],
+        "active_claims": [],
+        "resource_evidence_revision": 1,
+    }
+    result = pc.external_work_contract(message)
+    assert result["simulated"] is True
+    assert result["side_effects"] is False
+    assert requests == [{"op": "external_work_contract", "message": message}]

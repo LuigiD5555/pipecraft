@@ -11,7 +11,10 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 
 use crate::lock::WorkspaceRuntimeLock;
-use crate::protocol::{IpcRequest, IpcResponse, PROTOCOL_VERSION};
+use crate::protocol::{
+    validate_external_work_message, IpcRequest, IpcResponse, EXTERNAL_WORK_CAPABILITY,
+    EXTERNAL_WORK_PROTOCOL_VERSION, PROTOCOL_VERSION,
+};
 use crate::store::{JobRecord, JobRequest, JobStatus, JobStore};
 
 const MAX_REQUEST_BYTES: usize = 8 * 1024 * 1024;
@@ -239,6 +242,16 @@ impl RuntimeService {
 
     async fn handle_inner(&self, request: IpcRequest) -> Result<Value, (String, String)> {
         match request {
+            IpcRequest::ExternalWorkContract { message } => {
+                validate_external_work_message(&message)
+                    .map_err(|message| ("INVALID_EXTERNAL_WORK".into(), message))?;
+                Ok(json!({
+                    "protocol": EXTERNAL_WORK_PROTOCOL_VERSION,
+                    "simulated": true,
+                    "side_effects": false,
+                    "message": message
+                }))
+            }
             IpcRequest::PlanAdmission { snapshot } => {
                 let decision = pipecraft_runtime::admission::decide(&snapshot)
                     .map_err(|message| ("INVALID_ADMISSION_SNAPSHOT".into(), message))?;
@@ -253,7 +266,7 @@ impl RuntimeService {
                 "max_pipelines": self.config.max_pipelines,
                 "max_tasks": self.config.max_tasks,
                 "recovery": if self.config.recovery == RecoveryPolicy::Auto { "auto" } else { "manual" },
-                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", "command", "plugin", "resume"],
+                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", EXTERNAL_WORK_CAPABILITY, "command", "plugin", "resume"],
             })),
             IpcRequest::Submit {
                 pipeline,

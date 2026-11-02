@@ -113,6 +113,16 @@ class PipeCraft:
                           "from_step": from_step})
         return str(data["run_id"])
 
+    def external_work_contract(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Validate/round-trip external-work/v1 without claims or execution."""
+        if not isinstance(message, dict):
+            raise TypeError("message must be a mapping")
+        if message.get("protocol") != "pipecraft.external-work/v1":
+            raise ValueError("message protocol must be pipecraft.external-work/v1")
+        if not isinstance(message.get("request_id"), str) or not message["request_id"]:
+            raise ValueError("message request_id is required")
+        return self._ipc({"op": "external_work_contract", "message": message})
+
     def plan_admission(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         """Obtain advisory scheduling decisions. Never a claim or execute grant.
 
