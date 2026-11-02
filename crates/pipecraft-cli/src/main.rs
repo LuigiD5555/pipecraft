@@ -305,15 +305,17 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
             root,
             pipeline,
             labels,
-            *execute,
-            *approve,
-            from.clone(),
-            only.clone(),
-            *max_workers,
-            *resume,
-            run_id.clone(),
+            RunOptions {
+                execute: *execute,
+                approve: *approve,
+                from: from.clone(),
+                only: only.clone(),
+                max_workers: *max_workers,
+                resume: *resume,
+                run_id: run_id.clone(),
+                emit_json: *json,
+            },
             None,
-            *json,
         ),
         Commands::RunMany {
             pipelines,
@@ -327,13 +329,15 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
         } => cmd_run_many(
             root,
             pipelines,
-            *execute,
-            *approve,
-            *max_workers,
-            *max_pipelines,
-            *max_tasks,
-            *worker_threads,
-            *json,
+            RunManyOptions {
+                execute: *execute,
+                approve: *approve,
+                max_workers: *max_workers,
+                max_pipelines: *max_pipelines,
+                max_tasks: *max_tasks,
+                worker_threads: *worker_threads,
+                emit_json: *json,
+            },
         ),
         Commands::Serve {
             worker_threads,
@@ -432,14 +436,16 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
         } => cmd_run_labels(
             root,
             labels,
-            *execute,
-            *approve,
-            from.clone(),
-            only.clone(),
-            *max_workers,
-            *resume,
-            run_id.clone(),
-            *json,
+            RunOptions {
+                execute: *execute,
+                approve: *approve,
+                from: from.clone(),
+                only: only.clone(),
+                max_workers: *max_workers,
+                resume: *resume,
+                run_id: run_id.clone(),
+                emit_json: *json,
+            },
         ),
     }
 }
@@ -729,10 +735,7 @@ fn cmd_route(root: &Path, labels_text: &str, emit_json: bool) -> anyhow::Result<
     Ok(0)
 }
 
-fn cmd_run(
-    root: &Path,
-    pipeline: &str,
-    labels_text: &str,
+struct RunOptions {
     execute: bool,
     approve: bool,
     from: Option<String>,
@@ -740,9 +743,36 @@ fn cmd_run(
     max_workers: usize,
     resume: bool,
     run_id: Option<String>,
-    context: Option<WithMap>,
     emit_json: bool,
+}
+
+struct RunManyOptions {
+    execute: bool,
+    approve: bool,
+    max_workers: usize,
+    max_pipelines: usize,
+    max_tasks: usize,
+    worker_threads: usize,
+    emit_json: bool,
+}
+
+fn cmd_run(
+    root: &Path,
+    pipeline: &str,
+    labels_text: &str,
+    options: RunOptions,
+    context: Option<WithMap>,
 ) -> anyhow::Result<i32> {
+    let RunOptions {
+        execute,
+        approve,
+        from,
+        only,
+        max_workers,
+        resume,
+        run_id,
+        emit_json,
+    } = options;
     let catalog = PipelineCatalog::open(root)?;
     let _runtime_lock = WorkspaceRuntimeLock::acquire(&root.join(".pipelines/runtime"))
         .map_err(|error| anyhow::anyhow!("cannot start one-shot runtime: {error}; if `pipecraft serve` is active, use `pipecraft submit`"))?;
@@ -868,14 +898,17 @@ fn cmd_run(
 fn cmd_run_many(
     root: &Path,
     pipelines: &[String],
-    execute: bool,
-    approve: bool,
-    max_workers: usize,
-    max_pipelines: usize,
-    max_tasks: usize,
-    worker_threads: usize,
-    emit_json: bool,
+    options: RunManyOptions,
 ) -> anyhow::Result<i32> {
+    let RunManyOptions {
+        execute,
+        approve,
+        max_workers,
+        max_pipelines,
+        max_tasks,
+        worker_threads,
+        emit_json,
+    } = options;
     if pipelines.is_empty() {
         if emit_json {
             print_json(
@@ -984,15 +1017,9 @@ fn cmd_run_many(
 fn cmd_run_labels(
     root: &Path,
     labels_text: &str,
-    execute: bool,
-    approve: bool,
-    from: Option<String>,
-    only: Vec<String>,
-    max_workers: usize,
-    resume: bool,
-    run_id: Option<String>,
-    emit_json: bool,
+    options: RunOptions,
 ) -> anyhow::Result<i32> {
+    let emit_json = options.emit_json;
     let ws = load_workspace(root)?;
     let routes = load_routes(root, Some(&ws))?;
     let labels = extract_labels(labels_text);
@@ -1026,14 +1053,7 @@ fn cmd_run_labels(
         root,
         &selected.pipeline,
         labels_text,
-        execute,
-        approve,
-        from,
-        only,
-        max_workers,
-        resume,
-        run_id,
+        options,
         Some(selected.context.clone()),
-        emit_json,
     )
 }
