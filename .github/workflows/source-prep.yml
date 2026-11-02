@@ -1,4 +1,5 @@
 name: Prepare PipeCraft 1.7 source
+# rerun after release gate hardening
 
 on:
   push:
