@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pipecraft.local/schemas/external-work-v1.schema.json",
-  "title": "PipeCraft external-work v1 canonical semantic types",
-  "description": "Reusable identity, lifecycle, outcome and semantic error definitions. Transport messages are added by later contract nodes.",
+  "title": "PipeCraft external-work v1 contract",
+  "description": "Canonical external-work semantic, resource, fencing and replay definitions. Operational dispatch remains disabled until later gates.",
   "$defs": {
     "installation_id": {
       "type": "string",
@@ -127,6 +127,165 @@
         "HEAVY_BACKFILL_RESERVED",
         "CAPACITY_BUSY"
       ]
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "utc_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "canonical_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "worker_capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "resource_share_mode": {
+      "type": "string",
+      "enum": [
+        "SHARED",
+        "EXCLUSIVE"
+      ]
+    },
+    "resource_demand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resource_key",
+        "points",
+        "quantity",
+        "share_mode",
+        "limit"
+      ],
+      "properties": {
+        "resource_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+        },
+        "points": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "share_mode": {
+          "$ref": "#/$defs/resource_share_mode"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "leader_fence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installation_id",
+        "leadership_epoch",
+        "coordinator_id",
+        "lease_until_ms"
+      ],
+      "properties": {
+        "installation_id": {
+          "$ref": "#/$defs/installation_id"
+        },
+        "leadership_epoch": {
+          "$ref": "#/$defs/leadership_epoch"
+        },
+        "coordinator_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "lease_until_ms": {
+          "$ref": "#/$defs/utc_ms"
+        }
+      }
+    },
+    "claim_fence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "attempt_id",
+        "claim_epoch",
+        "leadership_epoch",
+        "owner_token",
+        "lease_until_ms"
+      ],
+      "properties": {
+        "work_id": {
+          "$ref": "#/$defs/work_id"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/attempt_id"
+        },
+        "claim_epoch": {
+          "$ref": "#/$defs/claim_epoch"
+        },
+        "leadership_epoch": {
+          "$ref": "#/$defs/leadership_epoch"
+        },
+        "owner_token": {
+          "$ref": "#/$defs/owner_token"
+        },
+        "lease_until_ms": {
+          "$ref": "#/$defs/utc_ms"
+        }
+      }
+    },
+    "replay_disposition": {
+      "type": "string",
+      "enum": [
+        "SAFE_TO_REPLAY",
+        "RECEIPT_ALREADY_COMMITTED",
+        "RECONCILIATION_REQUIRED",
+        "FORBIDDEN_UNCERTAIN",
+        "STALE_FENCE"
+      ]
+    },
+    "replay_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_id",
+        "operation_key",
+        "disposition"
+      ],
+      "properties": {
+        "work_id": {
+          "$ref": "#/$defs/work_id"
+        },
+        "operation_key": {
+          "$ref": "#/$defs/operation_key"
+        },
+        "receipt_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/receipt_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disposition": {
+          "$ref": "#/$defs/replay_disposition"
+        }
+      }
     }
   }
 }

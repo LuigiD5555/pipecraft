@@ -90,3 +90,10 @@ pipelines via `submit`/`submit_spec` if capabilities match.
   `labels`, `snapshot`, or `error` messages.
 - The read-only planner currently has no authentication, host-level lease or
   provider capability negotiation beyond the existing local IPC endpoint.
+
+
+## External-work v1 contract simulation (G1)
+
+PipeCraft advertises the optional capability `external_work_contract_v1`. The `external_work_contract` operation validates and round-trips a typed `pipecraft.external-work/v1` message over the existing local IPC channel. It is deliberately side-effect free: it does not reserve capacity, create a claim, start a worker, execute a pipeline, or authorize an external effect.
+
+The transport direction frozen for G1 is provider-driven pull over the existing trusted local IPC service. No daemon callback to arbitrary provider ports is introduced. Malformed messages return `INVALID_EXTERNAL_WORK`; legacy `pipecraft.ipc/v1` operations and read-only `plan_admission` remain unchanged.
