@@ -95,7 +95,7 @@ impl StepResult {
     /// Insert a key into the (object) `data` map, creating it if needed.
     pub fn set_data(&mut self, key: &str, value: serde_json::Value) {
         if !self.data.is_object() {
-            self.data = Box::new(serde_json::Value::Object(Default::default()));
+            *self.data = serde_json::Value::Object(Default::default());
         }
         if let Some(map) = self.data.as_object_mut() {
             map.insert(key.to_string(), value);
