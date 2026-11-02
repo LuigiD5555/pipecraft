@@ -15,7 +15,9 @@ use tokio::task::JoinSet;
 use pipecraft_core::model::{PipelineDefinition, PipelineStep};
 use pipecraft_report::{status, StepResult};
 
-use crate::admission::{decide, AdmissionPolicy, AdmissionSettings, AdmissionSnapshot, WorkCandidate};
+use crate::admission::{
+    decide, AdmissionPolicy, AdmissionSettings, AdmissionSnapshot, WorkCandidate,
+};
 use crate::context::ExecutionContext;
 use crate::coordinator::RuntimeCoordinator;
 use crate::events::emit_event;
