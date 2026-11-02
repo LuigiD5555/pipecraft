@@ -45,8 +45,14 @@ fn accepted_adr_documents_are_not_pending() {
         "docs/adrs/ADR-12-api-compatibility.md",
     ] {
         let text = fs::read_to_string(root().join(path)).unwrap();
-        assert!(text.contains("Status: **accepted**"), "{path} is not accepted");
-        assert!(!text.contains("Status: **pending**"), "{path} reverted to pending");
+        assert!(
+            text.contains("Status: **accepted**"),
+            "{path} is not accepted"
+        );
+        assert!(
+            !text.contains("Status: **pending**"),
+            "{path} reverted to pending"
+        );
     }
 }
 
