@@ -15,7 +15,9 @@ use crate::protocol::{
     validate_external_work_message, IpcRequest, IpcResponse, EXTERNAL_WORK_CAPABILITY,
     EXTERNAL_WORK_PROTOCOL_VERSION, PROTOCOL_VERSION,
 };
-use crate::store::{JobRecord, JobRequest, JobStatus, JobStore};
+use crate::store::{
+    ExternalReconcileObservation, ExternalRecoveryStore, JobRecord, JobRequest, JobStatus, JobStore,
+};
 
 const MAX_REQUEST_BYTES: usize = 8 * 1024 * 1024;
 const MAX_IPC_CONNECTIONS: usize = 64;
@@ -57,6 +59,7 @@ pub struct RuntimeService {
     coordinator: RuntimeCoordinator,
     pipeline_slots: Arc<Semaphore>,
     store: JobStore,
+    external_recovery: ExternalRecoveryStore,
     jobs: Arc<RwLock<BTreeMap<String, JobRecord>>>,
     cancellations: Arc<Mutex<BTreeMap<String, CancellationToken>>>,
     config: ServiceConfig,
@@ -72,6 +75,11 @@ impl RuntimeService {
         let store = JobStore::new(jobs_dir);
         store.prepare().await.map_err(|error| error.to_string())?;
         let jobs = store.load_all().await.map_err(|error| error.to_string())?;
+        let external_recovery = ExternalRecoveryStore::new(runtime_dir.join("external-recovery"));
+        external_recovery
+            .prepare()
+            .await
+            .map_err(|error| error.to_string())?;
         let service = Self {
             root,
             runs_dir: catalog.workspace.runs_dir.clone(),
@@ -79,6 +87,7 @@ impl RuntimeService {
             coordinator: RuntimeCoordinator::new(config.max_tasks),
             pipeline_slots: Arc::new(Semaphore::new(config.max_pipelines.max(1))),
             store,
+            external_recovery,
             jobs: Arc::new(RwLock::new(jobs)),
             cancellations: Arc::new(Mutex::new(BTreeMap::new())),
             config,
@@ -91,6 +100,29 @@ impl RuntimeService {
     pub fn root(&self) -> &Path {
         &self.root
     }
+
+
+    /// Persist a provider-supplied reconciliation observation without claiming
+    /// business authority. PipeCraft never mints epochs or receipts here.
+    pub async fn record_external_reconcile_hook(
+        &self,
+        observation: &ExternalReconcileObservation,
+    ) -> Result<(), String> {
+        self.external_recovery.observe(observation).await
+    }
+
+    /// Return the latest durable provider observation for crash/resume logic.
+    pub async fn external_reconcile_hook(
+        &self,
+        work_id: &str,
+        operation_key: &str,
+    ) -> Result<Option<ExternalReconcileObservation>, String> {
+        self.external_recovery
+            .load(work_id, operation_key)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
 
     async fn recover_startup(&self) -> Result<(), String> {
         let candidates = {

@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::protocol::{ExternalWorkState, ReplayDisposition};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobRequest {
     pub pipeline: String,
@@ -188,6 +190,201 @@ impl JobStore {
     }
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExternalReconcileObservation {
+    pub protocol: String,
+    pub work_id: String,
+    pub operation_key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_epoch: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leadership_epoch: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_id: Option<String>,
+    pub observed_state: ExternalWorkState,
+    pub replay: ReplayDisposition,
+    pub observed_at: String,
+}
+
+impl ExternalReconcileObservation {
+    pub fn new(
+        work_id: String,
+        operation_key: String,
+        attempt_id: Option<String>,
+        claim_epoch: Option<u64>,
+        leadership_epoch: Option<u64>,
+        receipt_id: Option<String>,
+        observed_state: ExternalWorkState,
+        replay: ReplayDisposition,
+    ) -> Result<Self, String> {
+        if work_id.trim().is_empty() || operation_key.trim().is_empty() {
+            return Err("external reconcile work_id and operation_key must be non-empty".into());
+        }
+        if claim_epoch == Some(0) || leadership_epoch == Some(0) {
+            return Err("external reconcile epochs must be positive when present".into());
+        }
+        if matches!(replay, ReplayDisposition::ReceiptAlreadyCommitted) && receipt_id.is_none() {
+            return Err("RECEIPT_ALREADY_COMMITTED requires receipt_id".into());
+        }
+        Ok(Self {
+            protocol: "pipecraft.external-reconcile-observation/v1".into(),
+            work_id,
+            operation_key,
+            attempt_id,
+            claim_epoch,
+            leadership_epoch,
+            receipt_id,
+            observed_state,
+            replay,
+            observed_at: Utc::now().to_rfc3339(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalRecoveryStore {
+    dir: PathBuf,
+}
+
+impl ExternalRecoveryStore {
+    pub fn new(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+
+    pub async fn prepare(&self) -> std::io::Result<()> {
+        tokio::fs::create_dir_all(&self.dir).await
+    }
+
+    fn encode_key(value: &str) -> String {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut out = String::with_capacity(value.len() * 2);
+        for byte in value.bytes() {
+            out.push(HEX[(byte >> 4) as usize] as char);
+            out.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+        out
+    }
+
+    pub fn path(&self, work_id: &str, operation_key: &str) -> PathBuf {
+        self.dir.join(format!(
+            "{}--{}.json",
+            Self::encode_key(work_id),
+            Self::encode_key(operation_key)
+        ))
+    }
+
+    pub async fn load(
+        &self,
+        work_id: &str,
+        operation_key: &str,
+    ) -> std::io::Result<Option<ExternalReconcileObservation>> {
+        let path = self.path(work_id, operation_key);
+        let bytes = match tokio::fs::read(&path).await {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let observation = serde_json::from_slice(&bytes)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+        Ok(Some(observation))
+    }
+
+    pub async fn observe(
+        &self,
+        observation: &ExternalReconcileObservation,
+    ) -> Result<(), String> {
+        self.prepare().await.map_err(|error| error.to_string())?;
+
+        if observation.protocol != "pipecraft.external-reconcile-observation/v1"
+            || observation.work_id.trim().is_empty()
+            || observation.operation_key.trim().is_empty()
+            || observation.claim_epoch == Some(0)
+            || observation.leadership_epoch == Some(0)
+        {
+            return Err("invalid external reconcile observation".into());
+        }
+        if matches!(
+            observation.replay,
+            ReplayDisposition::ReceiptAlreadyCommitted
+        ) && observation.receipt_id.is_none()
+        {
+            return Err("RECEIPT_ALREADY_COMMITTED requires receipt_id".into());
+        }
+
+        if let Some(previous) = self
+            .load(&observation.work_id, &observation.operation_key)
+            .await
+            .map_err(|error| error.to_string())?
+        {
+            if let (Some(old), Some(new)) = (previous.claim_epoch, observation.claim_epoch) {
+                if new < old {
+                    return Err("stale claim_epoch in external reconcile observation".into());
+                }
+            }
+            if let (Some(old), Some(new)) =
+                (previous.leadership_epoch, observation.leadership_epoch)
+            {
+                if new < old {
+                    return Err("stale leadership_epoch in external reconcile observation".into());
+                }
+            }
+            if let Some(old_receipt) = previous.receipt_id.as_deref() {
+                match observation.receipt_id.as_deref() {
+                    Some(new_receipt) if new_receipt == old_receipt => {}
+                    Some(_) => {
+                        return Err(
+                            "conflicting receipt_id for external reconcile observation".into(),
+                        )
+                    }
+                    None => {
+                        return Err(
+                            "external reconcile observation cannot discard known receipt_id".into(),
+                        )
+                    }
+                }
+            }
+            if matches!(
+                previous.replay,
+                ReplayDisposition::ReceiptAlreadyCommitted
+            ) && !matches!(
+                observation.replay,
+                ReplayDisposition::ReceiptAlreadyCommitted
+            ) {
+                return Err(
+                    "external reconcile observation cannot regress committed receipt state".into(),
+                );
+            }
+        }
+
+        let path = self.path(&observation.work_id, &observation.operation_key);
+        let tmp = path.with_extension(format!("json.tmp-{}", uuid::Uuid::new_v4().simple()));
+        let bytes =
+            serde_json::to_vec_pretty(observation).map_err(|error| error.to_string())?;
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(|error| error.to_string())?;
+        use tokio::io::AsyncWriteExt;
+        file.write_all(&bytes)
+            .await
+            .map_err(|error| error.to_string())?;
+        file.flush().await.map_err(|error| error.to_string())?;
+        file.sync_all().await.map_err(|error| error.to_string())?;
+        drop(file);
+        tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(|error| error.to_string())?;
+        if let Some(parent) = path.parent() {
+            if let Ok(dir) = std::fs::File::open(parent) {
+                let _ = dir.sync_all();
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,4 +428,66 @@ mod tests {
         assert_eq!(loaded.status, JobStatus::Queued);
         assert_eq!(loaded.request.pipeline, "demo");
     }
+    #[tokio::test]
+    async fn external_reconcile_store_rejects_stale_epochs_and_receipt_conflicts() {
+        use crate::protocol::{ExternalWorkState, ReplayDisposition};
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = ExternalRecoveryStore::new(dir.path().join("external-recovery"));
+        let committed = ExternalReconcileObservation::new(
+            "EXTRACTOR_RUN:821".into(),
+            "extractor-run-821/capture/primary".into(),
+            Some("attempt-2".into()),
+            Some(22),
+            Some(7),
+            Some("receipt-991".into()),
+            ExternalWorkState::SucceededVerified,
+            ReplayDisposition::ReceiptAlreadyCommitted,
+        )
+        .unwrap();
+        store.observe(&committed).await.unwrap();
+
+        let loaded = store
+            .load("EXTRACTOR_RUN:821", "extractor-run-821/capture/primary")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.receipt_id.as_deref(), Some("receipt-991"));
+
+        let stale = ExternalReconcileObservation::new(
+            "EXTRACTOR_RUN:821".into(),
+            "extractor-run-821/capture/primary".into(),
+            Some("attempt-3".into()),
+            Some(21),
+            Some(7),
+            Some("receipt-991".into()),
+            ExternalWorkState::SucceededVerified,
+            ReplayDisposition::ReceiptAlreadyCommitted,
+        )
+        .unwrap();
+        assert!(store
+            .observe(&stale)
+            .await
+            .unwrap_err()
+            .contains("stale claim_epoch"));
+
+        let conflicting = ExternalReconcileObservation::new(
+            "EXTRACTOR_RUN:821".into(),
+            "extractor-run-821/capture/primary".into(),
+            Some("attempt-3".into()),
+            Some(23),
+            Some(8),
+            Some("receipt-other".into()),
+            ExternalWorkState::SucceededVerified,
+            ReplayDisposition::ReceiptAlreadyCommitted,
+        )
+        .unwrap();
+        assert!(store
+            .observe(&conflicting)
+            .await
+            .unwrap_err()
+            .contains("conflicting receipt_id"));
+    }
+
+
 }
