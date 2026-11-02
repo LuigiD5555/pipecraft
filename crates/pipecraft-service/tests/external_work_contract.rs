@@ -1,11 +1,17 @@
 use serde_json::Value;
 
 fn schema() -> Value {
-    serde_json::from_str(include_str!("../../../schemas/external-work-v1.schema.json")).unwrap()
+    serde_json::from_str(include_str!(
+        "../../../schemas/external-work-v1.schema.json"
+    ))
+    .unwrap()
 }
 
 fn golden() -> Value {
-    serde_json::from_str(include_str!("../../../tests/golden/external-work-v1-contract.json")).unwrap()
+    serde_json::from_str(include_str!(
+        "../../../tests/golden/external-work-v1-contract.json"
+    ))
+    .unwrap()
 }
 
 #[test]
@@ -50,8 +56,14 @@ fn canonical_identity_types_keep_domain_and_security_invariants() {
         "receipt_id",
         "snapshot_revision",
     ] {
-        assert!(ids.contains_key(required), "golden identity missing {required}");
-        assert!(defs.contains_key(required), "schema definition missing {required}");
+        assert!(
+            ids.contains_key(required),
+            "golden identity missing {required}"
+        );
+        assert!(
+            defs.contains_key(required),
+            "schema definition missing {required}"
+        );
     }
 
     assert!(ids["provider_id"].as_str().unwrap().contains('/'));
@@ -60,8 +72,14 @@ fn canonical_identity_types_keep_domain_and_security_invariants() {
     assert!(ids["leadership_epoch"].as_u64().unwrap() > 0);
 
     let owner_token = &defs["owner_token"];
-    assert_eq!(owner_token.get("writeOnly").and_then(Value::as_bool), Some(true));
-    assert_eq!(owner_token.get("x-sensitive").and_then(Value::as_bool), Some(true));
+    assert_eq!(
+        owner_token.get("writeOnly").and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        owner_token.get("x-sensitive").and_then(Value::as_bool),
+        Some(true)
+    );
     assert!(
         !ids.contains_key("owner_token"),
         "secret owner_token must never appear in the generic golden decision fixture"
