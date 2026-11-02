@@ -25,7 +25,6 @@ pub struct PipelineEngine {
     pub registry: ExecutorRegistry,
 }
 
-
 impl PipelineEngine {
     pub fn new(registry: ExecutorRegistry) -> Self {
         Self { registry }
