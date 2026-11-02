@@ -28,9 +28,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: pipecraft-rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            pipecraft-rust-${{ runner.os }}-
       - name: Format check
         run: cargo fmt --all -- --check
       - name: Runtime admission and resource tests
-        run: cargo test --locked -p pipecraft-runtime --lib
+        run: timeout 240s cargo test --locked -p pipecraft-runtime --lib -- --test-threads=1 --nocapture
       - name: Service recovery hook tests
-        run: cargo test --locked -p pipecraft-service --lib
+        run: timeout 240s cargo test --locked -p pipecraft-service --lib -- --test-threads=1 --nocapture
