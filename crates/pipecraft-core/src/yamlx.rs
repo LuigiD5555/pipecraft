@@ -40,8 +40,11 @@ pub fn as_bool(value: &Value, field: &str) -> ConfigResult<bool> {
 }
 
 fn bool_err(field: &str) -> ConfigError {
-    ConfigError::new(format!("Field '{field}' must be boolean"), "FIELD_TYPE_ERROR")
-        .with_hint("Use true or false without quotes.")
+    ConfigError::new(
+        format!("Field '{field}' must be boolean"),
+        "FIELD_TYPE_ERROR",
+    )
+    .with_hint("Use true or false without quotes.")
 }
 
 /// Coerce a value to a list. `null` becomes an empty list.
@@ -49,10 +52,11 @@ pub fn as_list<'a>(value: &'a Value, field: &str) -> ConfigResult<Vec<&'a Value>
     match value {
         Value::Null => Ok(Vec::new()),
         Value::Sequence(items) => Ok(items.iter().collect()),
-        _ => Err(
-            ConfigError::new(format!("Field '{field}' must be a list"), "FIELD_TYPE_ERROR")
-                .with_hint(format!("Use '- item' lines under '{field}'.")),
-        ),
+        _ => Err(ConfigError::new(
+            format!("Field '{field}' must be a list"),
+            "FIELD_TYPE_ERROR",
+        )
+        .with_hint(format!("Use '- item' lines under '{field}'."))),
     }
 }
 
@@ -91,10 +95,13 @@ pub fn as_mapping(value: &Value, field: &str) -> ConfigResult<WithMap> {
             }
             Ok(out)
         }
-        _ => Err(
-            ConfigError::new(format!("Field '{field}' must be a mapping"), "FIELD_TYPE_ERROR")
-                .with_hint(format!("Use '{field}: {{}}' or nested YAML key/value pairs.")),
-        ),
+        _ => Err(ConfigError::new(
+            format!("Field '{field}' must be a mapping"),
+            "FIELD_TYPE_ERROR",
+        )
+        .with_hint(format!(
+            "Use '{field}: {{}}' or nested YAML key/value pairs."
+        ))),
     }
 }
 

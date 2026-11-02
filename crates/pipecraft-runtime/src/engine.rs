@@ -107,7 +107,8 @@ impl PipelineEngine {
         ctx: &ExecutionContext,
     ) -> PipelineRun {
         let coordinator = RuntimeCoordinator::new(ctx.max_workers);
-        self.run_async_with_coordinator(pipeline, ctx, coordinator).await
+        self.run_async_with_coordinator(pipeline, ctx, coordinator)
+            .await
     }
 
     pub async fn run_async_with_coordinator(
@@ -232,15 +233,12 @@ impl PipelineEngine {
             let registry = registry.clone();
             let pipeline = pipeline_owned.clone();
             let context = context_owned.clone();
-            Box::pin(async move {
-                execute_step_async(&registry, &step, &pipeline, &context).await
-            })
+            Box::pin(async move { execute_step_async(&registry, &step, &pipeline, &context).await })
         });
 
         let error_policy = pipeline.on_error.clone();
-        let policy_for: PolicyResolver = Arc::new(move |step, result| {
-            resolve_error_policy(&error_policy, step, result)
-        });
+        let policy_for: PolicyResolver =
+            Arc::new(move |step, result| resolve_error_policy(&error_policy, step, result));
 
         let output = schedule(
             pipeline,
@@ -327,19 +325,17 @@ impl PipelineEngine {
         let mut selected = order.to_vec();
         if let Some(from) = &ctx.from_step {
             let Some(position) = selected.iter().position(|id| id == from) else {
-                return Err(
-                    StepResult::new(
-                        "__selection__",
-                        "selection",
-                        false,
-                        status::FAILED,
-                        format!("--from step not found: {from}"),
-                    )
-                    .with_data(serde_json::json!({
-                        "error_code": "FROM_STEP_NOT_FOUND",
-                        "from": from,
-                    })),
-                );
+                return Err(StepResult::new(
+                    "__selection__",
+                    "selection",
+                    false,
+                    status::FAILED,
+                    format!("--from step not found: {from}"),
+                )
+                .with_data(serde_json::json!({
+                    "error_code": "FROM_STEP_NOT_FOUND",
+                    "from": from,
+                })));
             };
             selected = selected[position..].to_vec();
         }
@@ -352,19 +348,17 @@ impl PipelineEngine {
                 .cloned()
                 .collect();
             if !missing.is_empty() {
-                return Err(
-                    StepResult::new(
-                        "__selection__",
-                        "selection",
-                        false,
-                        status::FAILED,
-                        format!("--only references missing steps: {}", missing.join(", ")),
-                    )
-                    .with_data(serde_json::json!({
-                        "error_code": "ONLY_STEP_NOT_FOUND",
-                        "missing": missing,
-                    })),
-                );
+                return Err(StepResult::new(
+                    "__selection__",
+                    "selection",
+                    false,
+                    status::FAILED,
+                    format!("--only references missing steps: {}", missing.join(", ")),
+                )
+                .with_data(serde_json::json!({
+                    "error_code": "ONLY_STEP_NOT_FOUND",
+                    "missing": missing,
+                })));
             }
             let requested: HashSet<&String> = ctx.only_steps.iter().collect();
             selected.retain(|id| requested.contains(id));
@@ -408,11 +402,7 @@ async fn execute_step_async(
     result
 }
 
-fn resolve_error_policy(
-    policy: &ErrorPolicy,
-    step: &PipelineStep,
-    result: &StepResult,
-) -> String {
+fn resolve_error_policy(policy: &ErrorPolicy, step: &PipelineStep, result: &StepResult) -> String {
     if let Some(value) = policy.steps.get(&step.id) {
         return value.clone();
     }
@@ -434,7 +424,10 @@ async fn prepare_run_storage(ctx: &ExecutionContext) -> std::io::Result<()> {
         .append(true)
         .open(&ctx.events_path)
         .await?;
-    if !tokio::fs::try_exists(&ctx.state_path).await.unwrap_or(false) {
+    if !tokio::fs::try_exists(&ctx.state_path)
+        .await
+        .unwrap_or(false)
+    {
         let probe = ctx.run_dir.join(".state-write-probe");
         tokio::fs::write(&probe, b"probe").await?;
         tokio::fs::remove_file(probe).await?;

@@ -19,7 +19,10 @@ const MAX_IPC_CONNECTIONS: usize = 64;
 const IPC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecoveryPolicy { Manual, Auto }
+pub enum RecoveryPolicy {
+    Manual,
+    Auto,
+}
 
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
@@ -31,7 +34,9 @@ pub struct ServiceConfig {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        let cores = std::thread::available_parallelism().map(|value| value.get()).unwrap_or(4);
+        let cores = std::thread::available_parallelism()
+            .map(|value| value.get())
+            .unwrap_or(4);
         Self {
             worker_threads: cores.max(2),
             max_pipelines: 8,
@@ -80,7 +85,9 @@ impl RuntimeService {
         Ok(service)
     }
 
-    pub fn root(&self) -> &Path { &self.root }
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
 
     async fn recover_startup(&self) -> Result<(), String> {
         let candidates = {
@@ -92,7 +99,10 @@ impl RuntimeService {
         };
 
         for run_id in candidates {
-            let mut record = self.get_job(&run_id).await.ok_or_else(|| "job disappeared during recovery".to_string())?;
+            let mut record = self
+                .get_job(&run_id)
+                .await
+                .ok_or_else(|| "job disappeared during recovery".to_string())?;
             if let Some(recovered) = self.recover_completed_report(record.clone()).await? {
                 self.put_job(recovered).await?;
                 continue;
@@ -110,8 +120,15 @@ impl RuntimeService {
         Ok(())
     }
 
-    async fn recover_completed_report(&self, mut record: JobRecord) -> Result<Option<JobRecord>, String> {
-        let path = self.root.join(&record.runs_dir).join(&record.run_id).join("report.json");
+    async fn recover_completed_report(
+        &self,
+        mut record: JobRecord,
+    ) -> Result<Option<JobRecord>, String> {
+        let path = self
+            .root
+            .join(&record.runs_dir)
+            .join(&record.run_id)
+            .join("report.json");
         let bytes = match tokio::fs::read(&path).await {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -119,34 +136,57 @@ impl RuntimeService {
         };
         let value: Value = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
         if value.get("run_id").and_then(Value::as_str) != Some(record.run_id.as_str())
-            || value.get("pipeline").and_then(Value::as_str) != Some(record.request.pipeline.as_str())
+            || value.get("pipeline").and_then(Value::as_str)
+                != Some(record.request.pipeline.as_str())
         {
             return Ok(None);
         }
-        let cancelled = value.get("results")
+        let cancelled = value
+            .get("results")
             .and_then(Value::as_array)
-            .map(|results| results.iter().any(|result| result.get("status").and_then(Value::as_str) == Some("cancelled")))
+            .map(|results| {
+                results
+                    .iter()
+                    .any(|result| result.get("status").and_then(Value::as_str) == Some("cancelled"))
+            })
             .unwrap_or(false);
         record.status = if cancelled {
             JobStatus::Cancelled
-        } else if value.get("success").and_then(Value::as_bool).unwrap_or(false) {
+        } else if value
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
             JobStatus::Succeeded
         } else {
             JobStatus::Failed
         };
         record.report_path = Some(path.display().to_string());
-        let attempt_dir = self.root.join(&record.runs_dir).join(&record.run_id).join("attempts");
+        let attempt_dir = self
+            .root
+            .join(&record.runs_dir)
+            .join(&record.run_id)
+            .join("attempts");
         let attempt_path = attempt_dir.join(format!("attempt-{:03}.json", record.attempts.max(1)));
-        if !record.attempt_reports.iter().any(|item| item == &attempt_path.display().to_string()) {
+        if !record
+            .attempt_reports
+            .iter()
+            .any(|item| item == &attempt_path.display().to_string())
+        {
             let source = path.clone();
             let destination = attempt_path.clone();
             tokio::task::spawn_blocking(move || durable_copy(&source, &destination))
                 .await
                 .map_err(|error| error.to_string())?
                 .map_err(|error| error.to_string())?;
-            record.attempt_reports.push(attempt_path.display().to_string());
+            record
+                .attempt_reports
+                .push(attempt_path.display().to_string());
         }
-        record.finished_at = value.get("finished_at").and_then(Value::as_str).map(str::to_string)
+        record.finished_at = value
+            .get("finished_at")
+            .and_then(Value::as_str)
+            .map(str::to_string)
             .or_else(|| Some(Utc::now().to_rfc3339()));
         record.message = "recovered durable final report after runtime restart".into();
         record.warning = None;
@@ -159,14 +199,27 @@ impl RuntimeService {
     }
 
     async fn put_job(&self, record: JobRecord) -> Result<(), String> {
-        self.store.save(&record).await.map_err(|error| error.to_string())?;
-        self.jobs.write().await.insert(record.run_id.clone(), record);
+        self.store
+            .save(&record)
+            .await
+            .map_err(|error| error.to_string())?;
+        self.jobs
+            .write()
+            .await
+            .insert(record.run_id.clone(), record);
         Ok(())
     }
 
     fn make_run_id(&self, pipeline: &str) -> String {
-        let name: String = pipeline.chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' })
+        let name: String = pipeline
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                    ch
+                } else {
+                    '-'
+                }
+            })
             .take(48)
             .collect();
         format!(
@@ -202,15 +255,27 @@ impl RuntimeService {
                 "recovery": if self.config.recovery == RecoveryPolicy::Auto { "auto" } else { "manual" },
                 "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", "command", "plugin", "resume"],
             })),
-            IpcRequest::Submit { pipeline, execute, approve, labels, max_workers, from_step, only } => {
+            IpcRequest::Submit {
+                pipeline,
+                execute,
+                approve,
+                labels,
+                max_workers,
+                from_step,
+                only,
+            } => {
                 let catalog = PipelineCatalog::open(&self.root).map_err(internal)?;
-                let definition = catalog.load(&pipeline).map_err(|error| ("PIPELINE_NOT_FOUND".into(), error.to_string()))?;
+                let definition = catalog
+                    .load(&pipeline)
+                    .map_err(|error| ("PIPELINE_NOT_FOUND".into(), error.to_string()))?;
                 let errors = self.engine.validate(&definition);
                 if !errors.is_empty() {
                     return Err(("PIPELINE_INVALID".into(), errors.join("; ")));
                 }
                 let run_id = self.make_run_id(&pipeline);
-                let snapshot_path = self.persist_pipeline_snapshot(&run_id, &definition.path).await
+                let snapshot_path = self
+                    .persist_pipeline_snapshot(&run_id, &definition.path)
+                    .await
                     .map_err(service_error)?;
                 let request = JobRequest {
                     pipeline,
@@ -232,18 +297,22 @@ impl RuntimeService {
                     let _ = tokio::fs::remove_file(&snapshot_path).await;
                     return Err(service_error(error));
                 }
-                self.start_existing(run_id.clone(), false).await.map_err(service_error)?;
+                self.start_existing(run_id.clone(), false)
+                    .await
+                    .map_err(service_error)?;
                 Ok(json!({"run_id": run_id, "status": "queued"}))
             }
             IpcRequest::ValidateSpec { spec } => {
                 let raw = serde_yaml::to_value(&spec).map_err(internal)?;
                 let definition = match load_pipeline_value(raw, "<ipc-spec>") {
                     Ok(definition) => definition,
-                    Err(error) => return Ok(json!({
-                        "valid": false,
-                        "errors": [error.to_string()],
-                        "warnings": []
-                    })),
+                    Err(error) => {
+                        return Ok(json!({
+                            "valid": false,
+                            "errors": [error.to_string()],
+                            "warnings": []
+                        }))
+                    }
                 };
                 let errors = self.engine.validate(&definition);
                 Ok(json!({
@@ -253,11 +322,17 @@ impl RuntimeService {
                     "warnings": []
                 }))
             }
-            IpcRequest::PlanSpec { spec, from_step, only } => {
+            IpcRequest::PlanSpec {
+                spec,
+                from_step,
+                only,
+            } => {
                 let raw = serde_yaml::to_value(&spec).map_err(internal)?;
                 let definition = load_pipeline_value(raw, "<ipc-spec>")
                     .map_err(|error| ("SPEC_INVALID".into(), error.to_string()))?;
-                let order = self.engine.plan(&definition)
+                let order = self
+                    .engine
+                    .plan(&definition)
                     .map_err(|errors| ("PIPELINE_INVALID".into(), errors.join("; ")))?;
                 let selected = select_requested_order(&order, from_step.as_deref(), &only)?;
                 Ok(json!({
@@ -268,7 +343,15 @@ impl RuntimeService {
                     "step_count": definition.steps.len()
                 }))
             }
-            IpcRequest::SubmitSpec { spec, execute, approve, labels, max_workers, from_step, only } => {
+            IpcRequest::SubmitSpec {
+                spec,
+                execute,
+                approve,
+                labels,
+                max_workers,
+                from_step,
+                only,
+            } => {
                 let raw = serde_yaml::to_value(&spec).map_err(internal)?;
                 let definition = load_pipeline_value(raw, "<ipc-spec>")
                     .map_err(|error| ("SPEC_INVALID".into(), error.to_string()))?;
@@ -278,7 +361,9 @@ impl RuntimeService {
                 }
                 let pipeline = definition.name.clone();
                 let run_id = self.make_run_id(&pipeline);
-                let snapshot_path = self.persist_spec_snapshot(&run_id, &spec).await
+                let snapshot_path = self
+                    .persist_spec_snapshot(&run_id, &spec)
+                    .await
                     .map_err(service_error)?;
                 let request = JobRequest {
                     pipeline,
@@ -300,11 +385,16 @@ impl RuntimeService {
                     let _ = tokio::fs::remove_file(&snapshot_path).await;
                     return Err(service_error(error));
                 }
-                self.start_existing(run_id.clone(), false).await.map_err(service_error)?;
+                self.start_existing(run_id.clone(), false)
+                    .await
+                    .map_err(service_error)?;
                 Ok(json!({"run_id": run_id, "status": "queued", "source": "structured-spec"}))
             }
             IpcRequest::Status { run_id } => {
-                let record = self.get_job(&run_id).await.ok_or_else(|| not_found(&run_id))?;
+                let record = self
+                    .get_job(&run_id)
+                    .await
+                    .ok_or_else(|| not_found(&run_id))?;
                 serde_json::to_value(record).map_err(internal)
             }
             IpcRequest::Jobs => {
@@ -313,9 +403,14 @@ impl RuntimeService {
                 serde_json::to_value(values).map_err(internal)
             }
             IpcRequest::Cancel { run_id } => {
-                let mut record = self.get_job(&run_id).await.ok_or_else(|| not_found(&run_id))?;
+                let mut record = self
+                    .get_job(&run_id)
+                    .await
+                    .ok_or_else(|| not_found(&run_id))?;
                 if record.status.terminal() {
-                    return Ok(json!({"run_id": run_id, "status": record.status, "already_terminal": true}));
+                    return Ok(
+                        json!({"run_id": run_id, "status": record.status, "already_terminal": true}),
+                    );
                 }
                 if let Some(token) = self.cancellations.lock().await.get(&run_id).cloned() {
                     token.cancel();
@@ -326,25 +421,48 @@ impl RuntimeService {
                         record.touch();
                         self.put_job(record).await.map_err(service_error)?;
                         self.cancellations.lock().await.remove(&run_id);
-                        return Ok(json!({"run_id": run_id, "cancel_requested": true, "status": "cancelled"}));
+                        return Ok(
+                            json!({"run_id": run_id, "cancel_requested": true, "status": "cancelled"}),
+                        );
                     }
                     Ok(json!({"run_id": run_id, "cancel_requested": true}))
                 } else {
-                    Err(("JOB_NOT_ACTIVE".into(), format!("job {run_id} has no active cancellation token")))
+                    Err((
+                        "JOB_NOT_ACTIVE".into(),
+                        format!("job {run_id} has no active cancellation token"),
+                    ))
                 }
             }
             IpcRequest::Resume { run_id } => {
-                let record = self.get_job(&run_id).await.ok_or_else(|| not_found(&run_id))?;
+                let record = self
+                    .get_job(&run_id)
+                    .await
+                    .ok_or_else(|| not_found(&run_id))?;
                 if matches!(record.status, JobStatus::Queued | JobStatus::Running) {
-                    return Err(("JOB_ALREADY_ACTIVE".into(), format!("job {run_id} is already active")));
+                    return Err((
+                        "JOB_ALREADY_ACTIVE".into(),
+                        format!("job {run_id} is already active"),
+                    ));
                 }
                 if record.status == JobStatus::Succeeded {
-                    return Ok(json!({"run_id": run_id, "status": "succeeded", "already_complete": true}));
+                    return Ok(
+                        json!({"run_id": run_id, "status": "succeeded", "already_complete": true}),
+                    );
                 }
-                let version_warning = if !record.runtime_version.is_empty() && record.runtime_version != env!("CARGO_PKG_VERSION") {
-                    Some(format!("job was submitted under PipeCraft {} and is resuming under {}", record.runtime_version, env!("CARGO_PKG_VERSION")))
-                } else { None };
-                self.start_existing(run_id.clone(), true).await.map_err(service_error)?;
+                let version_warning = if !record.runtime_version.is_empty()
+                    && record.runtime_version != env!("CARGO_PKG_VERSION")
+                {
+                    Some(format!(
+                        "job was submitted under PipeCraft {} and is resuming under {}",
+                        record.runtime_version,
+                        env!("CARGO_PKG_VERSION")
+                    ))
+                } else {
+                    None
+                };
+                self.start_existing(run_id.clone(), true)
+                    .await
+                    .map_err(service_error)?;
                 Ok(json!({
                     "run_id": run_id,
                     "status": "queued",
@@ -352,11 +470,21 @@ impl RuntimeService {
                     "warning": version_warning.unwrap_or_else(|| "the interrupted node is replayed; external side effects must be idempotent or verified by the domain executor".into())
                 }))
             }
-            IpcRequest::Events { run_id, after, limit } => self.read_events(&run_id, after, limit).await,
+            IpcRequest::Events {
+                run_id,
+                after,
+                limit,
+            } => self.read_events(&run_id, after, limit).await,
             IpcRequest::Report { run_id } => {
-                let record = self.get_job(&run_id).await.ok_or_else(|| not_found(&run_id))?;
+                let record = self
+                    .get_job(&run_id)
+                    .await
+                    .ok_or_else(|| not_found(&run_id))?;
                 let Some(path) = record.report_path else {
-                    return Err(("REPORT_NOT_READY".into(), format!("job {run_id} has no final report yet")));
+                    return Err((
+                        "REPORT_NOT_READY".into(),
+                        format!("job {run_id} has no final report yet"),
+                    ));
                 };
                 let bytes = tokio::fs::read(&path).await.map_err(internal)?;
                 serde_json::from_slice(&bytes).map_err(internal)
@@ -364,8 +492,16 @@ impl RuntimeService {
         }
     }
 
-    async fn read_events(&self, run_id: &str, after: usize, limit: usize) -> Result<Value, (String, String)> {
-        let record = self.get_job(run_id).await.ok_or_else(|| not_found(run_id))?;
+    async fn read_events(
+        &self,
+        run_id: &str,
+        after: usize,
+        limit: usize,
+    ) -> Result<Value, (String, String)> {
+        let record = self
+            .get_job(run_id)
+            .await
+            .ok_or_else(|| not_found(run_id))?;
         let file = match tokio::fs::File::open(&record.events_path).await {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -379,29 +515,52 @@ impl RuntimeService {
         let limit = limit.clamp(1, 1000);
         while let Some(line) = lines.next_line().await.map_err(internal)? {
             if index >= after && events.len() < limit {
-                if let Ok(value) = serde_json::from_str::<Value>(&line) { events.push(value); }
+                if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                    events.push(value);
+                }
             }
             index += 1;
-            if events.len() >= limit { break; }
+            if events.len() >= limit {
+                break;
+            }
         }
         let next = if events.is_empty() { after } else { index };
         Ok(json!({"run_id": run_id, "after": after, "next": next, "events": events}))
     }
 
-    async fn persist_pipeline_snapshot(&self, run_id: &str, source: &str) -> Result<PathBuf, String> {
+    async fn persist_pipeline_snapshot(
+        &self,
+        run_id: &str,
+        source: &str,
+    ) -> Result<PathBuf, String> {
         use tokio::io::AsyncWriteExt;
-        let bytes = tokio::fs::read(source).await.map_err(|error| format!("could not read pipeline source {source}: {error}"))?;
+        let bytes = tokio::fs::read(source)
+            .await
+            .map_err(|error| format!("could not read pipeline source {source}: {error}"))?;
         let run_dir = self.root.join(&self.runs_dir).join(run_id);
-        tokio::fs::create_dir_all(&run_dir).await.map_err(|error| error.to_string())?;
+        tokio::fs::create_dir_all(&run_dir)
+            .await
+            .map_err(|error| error.to_string())?;
         let path = run_dir.join("pipeline.snapshot.yaml");
-        let tmp = run_dir.join(format!("pipeline.snapshot.yaml.tmp-{}", uuid::Uuid::new_v4().simple()));
-        let mut file = tokio::fs::File::create(&tmp).await.map_err(|error| error.to_string())?;
-        file.write_all(&bytes).await.map_err(|error| error.to_string())?;
+        let tmp = run_dir.join(format!(
+            "pipeline.snapshot.yaml.tmp-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(|error| error.to_string())?;
+        file.write_all(&bytes)
+            .await
+            .map_err(|error| error.to_string())?;
         file.flush().await.map_err(|error| error.to_string())?;
         file.sync_all().await.map_err(|error| error.to_string())?;
         drop(file);
-        tokio::fs::rename(&tmp, &path).await.map_err(|error| error.to_string())?;
-        if let Ok(dir) = std::fs::File::open(&run_dir) { let _ = dir.sync_all(); }
+        tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(|error| error.to_string())?;
+        if let Ok(dir) = std::fs::File::open(&run_dir) {
+            let _ = dir.sync_all();
+        }
         Ok(path)
     }
 
@@ -409,21 +568,37 @@ impl RuntimeService {
         use tokio::io::AsyncWriteExt;
         let text = serde_yaml::to_string(spec).map_err(|error| error.to_string())?;
         let run_dir = self.root.join(&self.runs_dir).join(run_id);
-        tokio::fs::create_dir_all(&run_dir).await.map_err(|error| error.to_string())?;
+        tokio::fs::create_dir_all(&run_dir)
+            .await
+            .map_err(|error| error.to_string())?;
         let path = run_dir.join("pipeline.snapshot.yaml");
-        let tmp = run_dir.join(format!("pipeline.snapshot.yaml.tmp-{}", uuid::Uuid::new_v4().simple()));
-        let mut file = tokio::fs::File::create(&tmp).await.map_err(|error| error.to_string())?;
-        file.write_all(text.as_bytes()).await.map_err(|error| error.to_string())?;
+        let tmp = run_dir.join(format!(
+            "pipeline.snapshot.yaml.tmp-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(|error| error.to_string())?;
+        file.write_all(text.as_bytes())
+            .await
+            .map_err(|error| error.to_string())?;
         file.flush().await.map_err(|error| error.to_string())?;
         file.sync_all().await.map_err(|error| error.to_string())?;
         drop(file);
-        tokio::fs::rename(&tmp, &path).await.map_err(|error| error.to_string())?;
-        if let Ok(dir) = std::fs::File::open(&run_dir) { let _ = dir.sync_all(); }
+        tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(|error| error.to_string())?;
+        if let Ok(dir) = std::fs::File::open(&run_dir) {
+            let _ = dir.sync_all();
+        }
         Ok(path)
     }
 
     async fn start_existing(&self, run_id: String, resume: bool) -> Result<(), String> {
-        let mut record = self.get_job(&run_id).await.ok_or_else(|| format!("unknown job {run_id}"))?;
+        let mut record = self
+            .get_job(&run_id)
+            .await
+            .ok_or_else(|| format!("unknown job {run_id}"))?;
         let token = CancellationToken::new();
         {
             // Atomic in-service admission for a run ID: even concurrent resume
@@ -440,7 +615,9 @@ impl RuntimeService {
             record.resume_requested = true;
             record.finished_at = None;
             record.report_path = None;
-            record.warning = if !record.runtime_version.is_empty() && record.runtime_version != env!("CARGO_PKG_VERSION") {
+            record.warning = if !record.runtime_version.is_empty()
+                && record.runtime_version != env!("CARGO_PKG_VERSION")
+            {
                 Some(format!(
                     "resuming a job submitted under PipeCraft {} with {}; interrupted nodes can be replayed",
                     record.runtime_version,
@@ -454,11 +631,17 @@ impl RuntimeService {
                 self.cancellations.lock().await.remove(&run_id);
                 return Err(error);
             }
-            let stale_latest = self.root.join(&record.runs_dir).join(&run_id).join("report.json");
+            let stale_latest = self
+                .root
+                .join(&record.runs_dir)
+                .join(&run_id)
+                .join("report.json");
             if let Err(error) = tokio::fs::remove_file(&stale_latest).await {
                 if error.kind() != std::io::ErrorKind::NotFound {
                     self.cancellations.lock().await.remove(&run_id);
-                    return Err(format!("could not clear prior latest report before resume: {error}"));
+                    return Err(format!(
+                        "could not clear prior latest report before resume: {error}"
+                    ));
                 }
             }
         }
@@ -468,10 +651,15 @@ impl RuntimeService {
             let nested_service = service.clone();
             let nested_run_id = run_id.clone();
             let joined = tokio::spawn(async move {
-                nested_service.execute_job(nested_run_id, resume, token).await
-            }).await;
+                nested_service
+                    .execute_job(nested_run_id, resume, token)
+                    .await
+            })
+            .await;
             if let Err(error) = joined {
-                service.mark_internal_failure(&run_id, format!("runtime task panicked: {error}")).await;
+                service
+                    .mark_internal_failure(&run_id, format!("runtime task panicked: {error}"))
+                    .await;
             }
         });
         Ok(())
@@ -481,12 +669,15 @@ impl RuntimeService {
         let _permit = match self.pipeline_slots.clone().acquire_owned().await {
             Ok(permit) => permit,
             Err(_) => {
-                self.mark_internal_failure(&run_id, "pipeline semaphore closed".into()).await;
+                self.mark_internal_failure(&run_id, "pipeline semaphore closed".into())
+                    .await;
                 return;
             }
         };
 
-        let Some(mut record) = self.get_job(&run_id).await else { return; };
+        let Some(mut record) = self.get_job(&run_id).await else {
+            return;
+        };
         if record.status == JobStatus::Cancelled || token.is_cancelled() {
             self.cancellations.lock().await.remove(&run_id);
             return;
@@ -496,15 +687,25 @@ impl RuntimeService {
         record.finished_at = None;
         record.attempts = record.attempts.saturating_add(1);
         record.resume_requested = resume;
-        record.message = if resume { "resuming".into() } else { "running".into() };
+        record.message = if resume {
+            "resuming".into()
+        } else {
+            "running".into()
+        };
         record.touch();
-        if self.put_job(record.clone()).await.is_err() { return; }
+        if self.put_job(record.clone()).await.is_err() {
+            return;
+        }
 
         let definition = if !record.pipeline_snapshot_path.is_empty() {
             match load_pipeline(Path::new(&record.pipeline_snapshot_path)) {
                 Ok(definition) => definition,
                 Err(error) => {
-                    self.mark_internal_failure(&run_id, format!("could not load durable pipeline snapshot: {error}")).await;
+                    self.mark_internal_failure(
+                        &run_id,
+                        format!("could not load durable pipeline snapshot: {error}"),
+                    )
+                    .await;
                     return;
                 }
             }
@@ -536,7 +737,8 @@ impl RuntimeService {
             .run_id(run_id.clone())
             .cancellation_token(token.clone());
 
-        let mut run = self.engine
+        let mut run = self
+            .engine
             .run_async_with_coordinator(&definition, &context, self.coordinator.clone())
             .await;
         let root = self.root.clone();
@@ -549,16 +751,22 @@ impl RuntimeService {
             let attempt_path = attempt_dir.join(format!("attempt-{attempt:03}.json"));
             durable_copy(&path, &attempt_path)?;
             Ok::<_, std::io::Error>((run, path, attempt_path))
-        }).await;
+        })
+        .await;
 
         let (run, report_path, attempt_path) = match write {
             Ok(Ok(value)) => value,
             Ok(Err(error)) => {
-                self.mark_internal_failure(&run_id, format!("could not persist final report: {error}")).await;
+                self.mark_internal_failure(
+                    &run_id,
+                    format!("could not persist final report: {error}"),
+                )
+                .await;
                 return;
             }
             Err(error) => {
-                self.mark_internal_failure(&run_id, format!("report writer panicked: {error}")).await;
+                self.mark_internal_failure(&run_id, format!("report writer panicked: {error}"))
+                    .await;
                 return;
             }
         };
@@ -576,9 +784,12 @@ impl RuntimeService {
                 JobStatus::Succeeded => "completed successfully",
                 JobStatus::Cancelled => "cancelled",
                 _ => "completed with failures",
-            }.into();
+            }
+            .into();
             final_record.report_path = Some(report_path.display().to_string());
-            final_record.attempt_reports.push(attempt_path.display().to_string());
+            final_record
+                .attempt_reports
+                .push(attempt_path.display().to_string());
             final_record.touch();
             let _ = self.put_job(final_record).await;
         }
@@ -597,14 +808,24 @@ impl RuntimeService {
     }
 
     async fn cancel_all(&self) {
-        let tokens = self.cancellations.lock().await.values().cloned().collect::<Vec<_>>();
-        for token in tokens { token.cancel(); }
+        let tokens = self
+            .cancellations
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for token in tokens {
+            token.cancel();
+        }
     }
 
     async fn wait_for_active_shutdown(&self) {
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(8);
         while tokio::time::Instant::now() < deadline {
-            if self.cancellations.lock().await.is_empty() { return; }
+            if self.cancellations.lock().await.is_empty() {
+                return;
+            }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
     }
@@ -614,12 +835,21 @@ impl RuntimeService {
         use tokio::net::{UnixListener, UnixStream};
         if tokio::fs::try_exists(&socket_path).await.unwrap_or(false) {
             match UnixStream::connect(&socket_path).await {
-                Ok(_) => return Err(format!("PipeCraft service already appears to be listening at {}", socket_path.display())),
-                Err(_) => tokio::fs::remove_file(&socket_path).await.map_err(|error| error.to_string())?,
+                Ok(_) => {
+                    return Err(format!(
+                        "PipeCraft service already appears to be listening at {}",
+                        socket_path.display()
+                    ))
+                }
+                Err(_) => tokio::fs::remove_file(&socket_path)
+                    .await
+                    .map_err(|error| error.to_string())?,
             }
         }
         if let Some(parent) = socket_path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|error| error.to_string())?;
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|error| error.to_string())?;
         }
         let listener = UnixListener::bind(&socket_path).map_err(|error| error.to_string())?;
         let connections = Arc::new(Semaphore::new(MAX_IPC_CONNECTIONS));
@@ -654,7 +884,9 @@ impl RuntimeService {
 
     #[cfg(not(unix))]
     pub async fn serve_tcp(self, address: &str) -> Result<(), String> {
-        let listener = tokio::net::TcpListener::bind(address).await.map_err(|error| error.to_string())?;
+        let listener = tokio::net::TcpListener::bind(address)
+            .await
+            .map_err(|error| error.to_string())?;
         let connections = Arc::new(Semaphore::new(MAX_IPC_CONNECTIONS));
         loop {
             tokio::select! {
@@ -690,9 +922,12 @@ impl RuntimeService {
         let mut saw_newline = false;
         while bytes_in.len() <= MAX_REQUEST_BYTES {
             let read = tokio::time::timeout(IPC_TIMEOUT, stream.read(&mut chunk))
-                .await.map_err(|_| "IPC request timed out".to_string())?
+                .await
+                .map_err(|_| "IPC request timed out".to_string())?
                 .map_err(|error| error.to_string())?;
-            if read == 0 { break; }
+            if read == 0 {
+                break;
+            }
             if let Some(pos) = chunk[..read].iter().position(|byte| *byte == b'\n') {
                 bytes_in.extend_from_slice(&chunk[..pos]);
                 saw_newline = true;
@@ -715,10 +950,12 @@ impl RuntimeService {
         let mut bytes = serde_json::to_vec(&response).map_err(|error| error.to_string())?;
         bytes.push(b'\n');
         tokio::time::timeout(IPC_TIMEOUT, stream.write_all(&bytes))
-            .await.map_err(|_| "IPC response timed out".to_string())?
+            .await
+            .map_err(|_| "IPC response timed out".to_string())?
             .map_err(|error| error.to_string())?;
         tokio::time::timeout(IPC_TIMEOUT, stream.shutdown())
-            .await.map_err(|_| "IPC shutdown timed out".to_string())?
+            .await
+            .map_err(|_| "IPC shutdown timed out".to_string())?
             .map_err(|error| error.to_string())?;
         Ok(())
     }
@@ -732,14 +969,24 @@ fn select_requested_order(
     let mut selected = order.to_vec();
     if let Some(from) = from_step {
         let Some(position) = selected.iter().position(|id| id == from) else {
-            return Err(("FROM_STEP_NOT_FOUND".into(), format!("from_step not found: {from}")));
+            return Err((
+                "FROM_STEP_NOT_FOUND".into(),
+                format!("from_step not found: {from}"),
+            ));
         };
         selected = selected[position..].to_vec();
     }
     if !only.is_empty() {
-        let missing = only.iter().filter(|id| !order.contains(id)).cloned().collect::<Vec<_>>();
+        let missing = only
+            .iter()
+            .filter(|id| !order.contains(id))
+            .cloned()
+            .collect::<Vec<_>>();
         if !missing.is_empty() {
-            return Err(("ONLY_STEP_NOT_FOUND".into(), format!("only references missing steps: {}", missing.join(", "))));
+            return Err((
+                "ONLY_STEP_NOT_FOUND".into(),
+                format!("only references missing steps: {}", missing.join(", ")),
+            ));
         }
         selected.retain(|id| only.contains(id));
     }
@@ -748,7 +995,9 @@ fn select_requested_order(
 
 fn durable_copy(source: &Path, destination: &Path) -> std::io::Result<()> {
     use std::io::Write;
-    if let Some(parent) = destination.parent() { std::fs::create_dir_all(parent)?; }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let bytes = std::fs::read(source)?;
     let tmp = destination.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
     let mut file = std::fs::File::create(&tmp)?;
@@ -764,7 +1013,9 @@ fn durable_copy(source: &Path, destination: &Path) -> std::io::Result<()> {
         }
     }
     if let Some(parent) = destination.parent() {
-        if let Ok(dir) = std::fs::File::open(parent) { let _ = dir.sync_all(); }
+        if let Ok(dir) = std::fs::File::open(parent) {
+            let _ = dir.sync_all();
+        }
     }
     Ok(())
 }
@@ -772,5 +1023,9 @@ fn durable_copy(source: &Path, destination: &Path) -> std::io::Result<()> {
 fn internal(error: impl std::fmt::Display) -> (String, String) {
     ("INTERNAL_ERROR".into(), error.to_string())
 }
-fn service_error(message: String) -> (String, String) { ("SERVICE_ERROR".into(), message) }
-fn not_found(run_id: &str) -> (String, String) { ("JOB_NOT_FOUND".into(), format!("unknown job {run_id}")) }
+fn service_error(message: String) -> (String, String) {
+    ("SERVICE_ERROR".into(), message)
+}
+fn not_found(run_id: &str) -> (String, String) {
+    ("JOB_NOT_FOUND".into(), format!("unknown job {run_id}"))
+}

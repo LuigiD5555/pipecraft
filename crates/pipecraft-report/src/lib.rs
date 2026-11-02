@@ -29,8 +29,20 @@ pub mod status {
     pub const BLOCKED: &str = "blocked";
 
     pub const ALL: [&str; 14] = [
-        OK, OK_WITH_WARNINGS, SKIPPED, FAILED, NEEDS_APPROVAL, DRY_RUN, PLANNED, TIMEOUT,
-        CANCELLED, PENDING, READY, RUNNING, SUCCEEDED, BLOCKED,
+        OK,
+        OK_WITH_WARNINGS,
+        SKIPPED,
+        FAILED,
+        NEEDS_APPROVAL,
+        DRY_RUN,
+        PLANNED,
+        TIMEOUT,
+        CANCELLED,
+        PENDING,
+        READY,
+        RUNNING,
+        SUCCEEDED,
+        BLOCKED,
     ];
 
     pub fn is_valid(s: &str) -> bool {
@@ -165,7 +177,10 @@ pub fn write_run(run: &mut PipelineRun, root: &Path, runs_dir: &str) -> std::io:
     obj.insert("max_workers", serde_json::json!(run.max_workers));
     obj.insert("runtime", serde_json::json!(run.runtime));
     obj.insert("global_max_tasks", serde_json::json!(run.global_max_tasks));
-    obj.insert("results", serde_json::to_value(&run.results).unwrap_or_default());
+    obj.insert(
+        "results",
+        serde_json::to_value(&run.results).unwrap_or_default(),
+    );
 
     use std::io::Write;
     let json = serde_json::to_vec_pretty(&obj).unwrap_or_else(|_| b"{}".to_vec());
@@ -182,7 +197,9 @@ pub fn write_run(run: &mut PipelineRun, root: &Path, runs_dir: &str) -> std::io:
             return Err(first);
         }
     }
-    if let Ok(dir) = std::fs::File::open(&out) { let _ = dir.sync_all(); }
+    if let Ok(dir) = std::fs::File::open(&out) {
+        let _ = dir.sync_all();
+    }
     run.report_path = path.display().to_string();
     Ok(path)
 }
@@ -220,7 +237,10 @@ mod tests {
         let path = write_run(&mut run, dir.path(), ".pipelines/runs").unwrap();
         assert!(path.exists());
         assert!(path.ends_with("report.json"));
-        assert!(dir.path().join(".pipelines/runs/20260101T000000Z-demo-abcd/logs").exists());
+        assert!(dir
+            .path()
+            .join(".pipelines/runs/20260101T000000Z-demo-abcd/logs")
+            .exists());
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("\"pipeline\": \"demo\""));
     }

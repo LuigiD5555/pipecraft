@@ -6,8 +6,8 @@ pub mod capacity;
 pub mod context;
 pub mod coordinator;
 pub mod engine;
-pub mod executor;
 pub mod events;
+pub mod executor;
 pub mod manager;
 pub mod process;
 pub mod resources;
@@ -83,15 +83,24 @@ on_error:
     fn validates_clean_pipeline() {
         let dir = tempfile::tempdir().unwrap();
         setup(dir.path());
-        let pipeline = PipelineCatalog::open(dir.path()).unwrap().load("demo-pipeline").unwrap();
-        assert_eq!(PipelineEngine::default().validate(&pipeline), Vec::<String>::new());
+        let pipeline = PipelineCatalog::open(dir.path())
+            .unwrap()
+            .load("demo-pipeline")
+            .unwrap();
+        assert_eq!(
+            PipelineEngine::default().validate(&pipeline),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
     fn topological_order_respects_needs() {
         let dir = tempfile::tempdir().unwrap();
         setup(dir.path());
-        let pipeline = PipelineCatalog::open(dir.path()).unwrap().load("demo-pipeline").unwrap();
+        let pipeline = PipelineCatalog::open(dir.path())
+            .unwrap()
+            .load("demo-pipeline")
+            .unwrap();
         let order = PipelineEngine::default().plan(&pipeline).unwrap();
         // intent must come before review/safety, which come before gate.
         let pos = |id: &str| order.iter().position(|x| x == id).unwrap();
@@ -105,7 +114,10 @@ on_error:
     fn dry_run_marks_gate_needs_approval() {
         let dir = tempfile::tempdir().unwrap();
         setup(dir.path());
-        let pipeline = PipelineCatalog::open(dir.path()).unwrap().load("demo-pipeline").unwrap();
+        let pipeline = PipelineCatalog::open(dir.path())
+            .unwrap()
+            .load("demo-pipeline")
+            .unwrap();
         let ctx = ExecutionContext::new(dir.path().to_path_buf())
             .labels(vec!["demo".into()])
             .dry_run(true);

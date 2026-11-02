@@ -11,8 +11,8 @@ use pipecraft_report::PipelineRun;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-use crate::{ExecutionContext, PipelineEngine, RuntimeCoordinator};
 use crate::engine::panic_run;
+use crate::{ExecutionContext, PipelineEngine, RuntimeCoordinator};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeLimits {
@@ -23,7 +23,9 @@ pub struct RuntimeLimits {
 
 impl Default for RuntimeLimits {
     fn default() -> Self {
-        let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let cores = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
         Self {
             worker_threads: cores.max(2),
             max_pipelines: 8,
@@ -40,7 +42,10 @@ pub struct PipelineRequest {
 
 impl PipelineRequest {
     pub fn new(pipeline: PipelineDefinition, context: ExecutionContext) -> Self {
-        Self { pipeline: Arc::new(pipeline), context }
+        Self {
+            pipeline: Arc::new(pipeline),
+            context,
+        }
     }
 }
 
@@ -81,7 +86,10 @@ impl RuntimeManager {
                 let _pipeline_permit = match slots.acquire_owned().await {
                     Ok(permit) => permit,
                     Err(_) => {
-                        return (index, panic_run(&pipeline, &context, "pipeline semaphore closed"));
+                        return (
+                            index,
+                            panic_run(&pipeline, &context, "pipeline semaphore closed"),
+                        );
                     }
                 };
                 // Keep this outer task alive so a bug in one pipeline cannot make
@@ -128,7 +136,10 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use pipecraft_core::{load_pipeline, model::{PipelineDefinition, PipelineStep}};
+    use pipecraft_core::{
+        load_pipeline,
+        model::{PipelineDefinition, PipelineStep},
+    };
     use pipecraft_report::{status, StepResult};
 
     use crate::executor::{ExecutorRegistry, StepExecutor};

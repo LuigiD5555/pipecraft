@@ -10,12 +10,18 @@ use clap::{Parser, Subcommand};
 use serde_json::json;
 
 use pipecraft_core::yamlx::WithMap;
-use pipecraft_core::{extract_labels, load_routes, load_workspace, match_routes, select_route, PipelineCatalog};
+use pipecraft_core::{
+    extract_labels, load_routes, load_workspace, match_routes, select_route, PipelineCatalog,
+};
 use pipecraft_report::write_run;
 use pipecraft_runtime::{
-    CancellationToken, ExecutionContext, PipelineEngine, PipelineRequest, RuntimeLimits, RuntimeManager,
+    CancellationToken, ExecutionContext, PipelineEngine, PipelineRequest, RuntimeLimits,
+    RuntimeManager,
 };
-use pipecraft_service::{default_endpoint, IpcRequest, RecoveryPolicy, RuntimeService, ServiceClient, ServiceConfig, WorkspaceRuntimeLock};
+use pipecraft_service::{
+    default_endpoint, IpcRequest, RecoveryPolicy, RuntimeService, ServiceClient, ServiceConfig,
+    WorkspaceRuntimeLock,
+};
 
 #[derive(Parser)]
 #[command(
@@ -262,18 +268,27 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
         Commands::Plan { pipeline, json } => cmd_plan(root, pipeline, *json),
         Commands::AdmissionPlan { snapshot, json } => {
             let bytes = std::fs::read(snapshot)?;
-            let parsed: pipecraft_runtime::admission::AdmissionSnapshot = serde_json::from_slice(&bytes)?;
-            let output = pipecraft_runtime::admission::decide(&parsed).map_err(anyhow::Error::msg)?;
-            if *json { print_json(serde_json::to_value(&output)?)?; }
-            else {
-                println!("  PipeCraft admission preview (revision {})", output.revision);
+            let parsed: pipecraft_runtime::admission::AdmissionSnapshot =
+                serde_json::from_slice(&bytes)?;
+            let output =
+                pipecraft_runtime::admission::decide(&parsed).map_err(anyhow::Error::msg)?;
+            if *json {
+                print_json(serde_json::to_value(&output)?)?;
+            } else {
+                println!(
+                    "  PipeCraft admission preview (revision {})",
+                    output.revision
+                );
                 println!("  Proposed: {:?}", output.offered);
                 println!("  Blocked: {}", output.blocked.len());
-                println!("  Used capacity: {}/{}", output.capacity_used, output.capacity_total);
+                println!(
+                    "  Used capacity: {}/{}",
+                    output.capacity_used, output.capacity_total
+                );
                 println!("  No work has been claimed or executed.");
             }
             Ok(0)
-        },
+        }
         Commands::Route { labels, json } => cmd_route(root, labels, *json),
         Commands::Run {
             pipeline,
@@ -320,22 +335,90 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
             *worker_threads,
             *json,
         ),
-        Commands::Serve { worker_threads, max_pipelines, max_tasks, recovery } => {
-            cmd_serve(root, socket, *worker_threads, *max_pipelines, *max_tasks, recovery)
-        }
-        Commands::Submit { pipeline, execute, approve, labels, max_workers, from, only, json } => {
-            service_command(root, socket, IpcRequest::Submit {
-                pipeline: pipeline.clone(), execute: *execute, approve: *approve,
-                labels: labels.clone(), max_workers: *max_workers,
-                from_step: from.clone(), only: only.clone(),
-            }, *json)
-        }
-        Commands::Status { run_id, json } => service_command(root, socket, IpcRequest::Status { run_id: run_id.clone() }, *json),
+        Commands::Serve {
+            worker_threads,
+            max_pipelines,
+            max_tasks,
+            recovery,
+        } => cmd_serve(
+            root,
+            socket,
+            *worker_threads,
+            *max_pipelines,
+            *max_tasks,
+            recovery,
+        ),
+        Commands::Submit {
+            pipeline,
+            execute,
+            approve,
+            labels,
+            max_workers,
+            from,
+            only,
+            json,
+        } => service_command(
+            root,
+            socket,
+            IpcRequest::Submit {
+                pipeline: pipeline.clone(),
+                execute: *execute,
+                approve: *approve,
+                labels: labels.clone(),
+                max_workers: *max_workers,
+                from_step: from.clone(),
+                only: only.clone(),
+            },
+            *json,
+        ),
+        Commands::Status { run_id, json } => service_command(
+            root,
+            socket,
+            IpcRequest::Status {
+                run_id: run_id.clone(),
+            },
+            *json,
+        ),
         Commands::Jobs { json } => service_command(root, socket, IpcRequest::Jobs, *json),
-        Commands::Cancel { run_id, json } => service_command(root, socket, IpcRequest::Cancel { run_id: run_id.clone() }, *json),
-        Commands::ResumeJob { run_id, json } => service_command(root, socket, IpcRequest::Resume { run_id: run_id.clone() }, *json),
-        Commands::JobEvents { run_id, after, limit, json } => service_command(root, socket, IpcRequest::Events { run_id: run_id.clone(), after: *after, limit: *limit }, *json),
-        Commands::JobReport { run_id, json } => service_command(root, socket, IpcRequest::Report { run_id: run_id.clone() }, *json),
+        Commands::Cancel { run_id, json } => service_command(
+            root,
+            socket,
+            IpcRequest::Cancel {
+                run_id: run_id.clone(),
+            },
+            *json,
+        ),
+        Commands::ResumeJob { run_id, json } => service_command(
+            root,
+            socket,
+            IpcRequest::Resume {
+                run_id: run_id.clone(),
+            },
+            *json,
+        ),
+        Commands::JobEvents {
+            run_id,
+            after,
+            limit,
+            json,
+        } => service_command(
+            root,
+            socket,
+            IpcRequest::Events {
+                run_id: run_id.clone(),
+                after: *after,
+                limit: *limit,
+            },
+            *json,
+        ),
+        Commands::JobReport { run_id, json } => service_command(
+            root,
+            socket,
+            IpcRequest::Report {
+                run_id: run_id.clone(),
+            },
+            *json,
+        ),
         Commands::RunLabels {
             labels,
             execute,
@@ -346,20 +429,38 @@ fn run(command: &Commands, root: &Path, socket: Option<&str>) -> anyhow::Result<
             resume,
             run_id,
             json,
-        } => cmd_run_labels(root, labels, *execute, *approve, from.clone(), only.clone(), *max_workers, *resume, run_id.clone(), *json),
+        } => cmd_run_labels(
+            root,
+            labels,
+            *execute,
+            *approve,
+            from.clone(),
+            only.clone(),
+            *max_workers,
+            *resume,
+            run_id.clone(),
+            *json,
+        ),
     }
 }
 
-
 fn service_endpoint(root: &Path, socket: Option<&str>) -> String {
-    socket.map(str::to_string).unwrap_or_else(|| default_endpoint(root))
+    socket
+        .map(str::to_string)
+        .unwrap_or_else(|| default_endpoint(root))
 }
 
-fn service_command(root: &Path, socket: Option<&str>, request: IpcRequest, emit_json: bool) -> anyhow::Result<i32> {
+fn service_command(
+    root: &Path,
+    socket: Option<&str>,
+    request: IpcRequest,
+    emit_json: bool,
+) -> anyhow::Result<i32> {
     let endpoint = service_endpoint(root, socket);
     let client = ServiceClient::new(endpoint.clone());
-    let response = client.request(&request)
-        .map_err(|error| anyhow::anyhow!("could not contact PipeCraft service at {endpoint}: {error}"))?;
+    let response = client.request(&request).map_err(|error| {
+        anyhow::anyhow!("could not contact PipeCraft service at {endpoint}: {error}")
+    })?;
     if emit_json {
         println!("{}", serde_json::to_string_pretty(&response)?);
     } else if response.ok {
@@ -380,34 +481,65 @@ fn cmd_serve(
     max_tasks: usize,
     recovery: &str,
 ) -> anyhow::Result<i32> {
-    let cores = std::thread::available_parallelism().map(|value| value.get()).unwrap_or(4);
+    let cores = std::thread::available_parallelism()
+        .map(|value| value.get())
+        .unwrap_or(4);
     let recovery = match recovery {
         "manual" => RecoveryPolicy::Manual,
         "auto" => RecoveryPolicy::Auto,
-        other => return Err(anyhow::anyhow!("unknown recovery policy {other:?}; use manual or auto")),
+        other => {
+            return Err(anyhow::anyhow!(
+                "unknown recovery policy {other:?}; use manual or auto"
+            ))
+        }
     };
     let config = ServiceConfig {
-        worker_threads: if worker_threads == 0 { cores.max(2) } else { worker_threads.max(1) },
+        worker_threads: if worker_threads == 0 {
+            cores.max(2)
+        } else {
+            worker_threads.max(1)
+        },
         max_pipelines: max_pipelines.max(1),
         max_tasks: max_tasks.max(1),
         recovery,
     };
     let endpoint = service_endpoint(root, socket);
     println!("  PipeCraft runtime service  : {endpoint}");
-    println!("  Recovery policy            : {}", if recovery == RecoveryPolicy::Auto { "auto" } else { "manual" });
-    println!("  Max pipelines / tasks      : {} / {}", config.max_pipelines, config.max_tasks);
+    println!(
+        "  Recovery policy            : {}",
+        if recovery == RecoveryPolicy::Auto {
+            "auto"
+        } else {
+            "manual"
+        }
+    );
+    println!(
+        "  Max pipelines / tasks      : {} / {}",
+        config.max_pipelines, config.max_tasks
+    );
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(config.worker_threads.max(1))
         .enable_all()
         .build()?;
     let result = runtime.block_on(async {
-        let service = RuntimeService::open(root.to_path_buf(), config).await
+        let service = RuntimeService::open(root.to_path_buf(), config)
+            .await
             .map_err(anyhow::Error::msg)?;
         #[cfg(unix)]
-        { service.serve_unix(PathBuf::from(endpoint)).await.map_err(anyhow::Error::msg) }
+        {
+            service
+                .serve_unix(PathBuf::from(endpoint))
+                .await
+                .map_err(anyhow::Error::msg)
+        }
         #[cfg(not(unix))]
-        { service.serve_tcp(endpoint.strip_prefix("tcp://").unwrap_or(&endpoint)).await.map_err(anyhow::Error::msg) }
+        {
+            service
+                .serve_tcp(endpoint.strip_prefix("tcp://").unwrap_or(&endpoint))
+                .await
+                .map_err(anyhow::Error::msg)
+        }
     });
     result?;
     Ok(0)
@@ -429,7 +561,10 @@ fn cmd_list(root: &Path, emit_json: bool) -> anyhow::Result<i32> {
     println!("\n  workspace      : {}", catalog.workspace.name);
     println!("  pipeline dir   : {}\n", catalog.workspace.pipeline_dir);
     if names.is_empty() {
-        println!("  No pipelines found. Add YAML files under {}/", catalog.workspace.pipeline_dir);
+        println!(
+            "  No pipelines found. Add YAML files under {}/",
+            catalog.workspace.pipeline_dir
+        );
         return Ok(1);
     }
     for name in names {
@@ -467,7 +602,11 @@ fn cmd_validate(root: &Path, pipeline: &str, emit_json: bool) -> anyhow::Result<
     }
 
     if errors.is_empty() {
-        println!("  ✅ Pipeline valid: {} ({} steps)", def.name, def.steps.len());
+        println!(
+            "  ✅ Pipeline valid: {} ({} steps)",
+            def.name,
+            def.steps.len()
+        );
         Ok(0)
     } else {
         println!("\n  Pipeline invalid: {}", def.name);
@@ -508,7 +647,11 @@ fn cmd_plan(root: &Path, pipeline: &str, emit_json: bool) -> anyhow::Result<i32>
             println!("  Execution order ({} steps):", order.len());
             for (i, id) in order.iter().enumerate() {
                 let step = def.steps.iter().find(|s| &s.id == id).unwrap();
-                let gate = if step.requires_approval { " [approval]" } else { "" };
+                let gate = if step.requires_approval {
+                    " [approval]"
+                } else {
+                    ""
+                };
                 println!("  {:>2}. {id}  ({}){gate}", i + 1, step.step_type);
             }
             Ok(0)
@@ -554,7 +697,11 @@ fn cmd_route(root: &Path, labels_text: &str, emit_json: bool) -> anyhow::Result<
         return Ok(if selected.is_some() { 0 } else { 1 });
     }
 
-    let shown = if labels.is_empty() { "—".to_string() } else { labels.join(" ") };
+    let shown = if labels.is_empty() {
+        "—".to_string()
+    } else {
+        labels.join(" ")
+    };
     println!("\n  Labels: {shown}");
     if !warnings.is_empty() {
         println!("  Warnings:");
@@ -563,14 +710,20 @@ fn cmd_route(root: &Path, labels_text: &str, emit_json: bool) -> anyhow::Result<
         }
     }
     if matches.is_empty() {
-        let sel = selected.map(|m| m.pipeline).unwrap_or_else(|| ws.default_pipeline.clone());
+        let sel = selected
+            .map(|m| m.pipeline)
+            .unwrap_or_else(|| ws.default_pipeline.clone());
         println!("  Selected pipeline: {sel}");
         return Ok(0);
     }
     println!("  Matched routes:");
     let selected_id = selected.as_ref().map(|m| m.route.id.clone());
     for m in &matches {
-        let marker = if selected_id.as_deref() == Some(&m.route.id) { "*" } else { " " };
+        let marker = if selected_id.as_deref() == Some(&m.route.id) {
+            "*"
+        } else {
+            " "
+        };
         println!("  {marker} {} → {}", m.route.id, m.pipeline);
     }
     Ok(0)
@@ -631,7 +784,9 @@ fn cmd_run(
     let cancellation = CancellationToken::new();
     let signal_token = cancellation.clone();
     if let Err(e) = ctrlc::set_handler(move || signal_token.cancel()) {
-        if !emit_json { eprintln!("  ⚠️  could not install Ctrl+C handler: {e}"); }
+        if !emit_json {
+            eprintln!("  ⚠️  could not install Ctrl+C handler: {e}");
+        }
     }
 
     let ctx = ExecutionContext::new(root.to_path_buf())
@@ -669,8 +824,18 @@ fn cmd_run(
     }
 
     println!("\n  Pipeline : {}", run.pipeline);
-    println!("  Mode     : {}", if run.dry_run { "dry-run" } else { "execute" });
-    println!("  Status   : {}", if run.success { "success" } else { "needs attention" });
+    println!(
+        "  Mode     : {}",
+        if run.dry_run { "dry-run" } else { "execute" }
+    );
+    println!(
+        "  Status   : {}",
+        if run.success {
+            "success"
+        } else {
+            "needs attention"
+        }
+    );
     if !run.selected_from.is_empty() {
         println!("  From     : {}", run.selected_from);
     }
@@ -692,7 +857,10 @@ fn cmd_run(
         } else {
             "❌"
         };
-        println!("  {icon} {:24} [{}] {} — {}", r.step_id, r.step_type, r.status, r.message);
+        println!(
+            "  {icon} {:24} [{}] {} — {}",
+            r.step_id, r.step_type, r.status, r.message
+        );
     }
     Ok(if run.success { 0 } else { 1 })
 }
@@ -710,7 +878,9 @@ fn cmd_run_many(
 ) -> anyhow::Result<i32> {
     if pipelines.is_empty() {
         if emit_json {
-            print_json(json!({"success": false, "errors": ["run-many requires at least one pipeline"]}))?;
+            print_json(
+                json!({"success": false, "errors": ["run-many requires at least one pipeline"]}),
+            )?;
         } else {
             eprintln!("  ⚠️  run-many requires at least one pipeline");
         }
@@ -753,9 +923,15 @@ fn cmd_run_many(
         requests.push(PipelineRequest::new(definition, context));
     }
 
-    let cores = std::thread::available_parallelism().map(|value| value.get()).unwrap_or(4);
+    let cores = std::thread::available_parallelism()
+        .map(|value| value.get())
+        .unwrap_or(4);
     let limits = RuntimeLimits {
-        worker_threads: if worker_threads == 0 { cores.max(2) } else { worker_threads.max(1) },
+        worker_threads: if worker_threads == 0 {
+            cores.max(2)
+        } else {
+            worker_threads.max(1)
+        },
         max_pipelines: max_pipelines.max(1),
         max_tasks: max_tasks.max(1),
     };

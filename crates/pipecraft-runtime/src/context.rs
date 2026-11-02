@@ -1,12 +1,14 @@
 //! Runtime settings for a single pipeline run.
 
 use std::path::PathBuf;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use tokio::sync::Notify;
 
 use pipecraft_core::yamlx::WithMap;
-
 
 /// Cooperative cancellation shared by the scheduler and process executors.
 /// Clones refer to the same atomic flag, so callers can keep one handle and
@@ -18,13 +20,17 @@ pub struct CancellationToken {
 }
 
 impl CancellationToken {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
     pub fn cancel(&self) {
         if !self.cancelled.swap(true, Ordering::SeqCst) {
             self.notify.notify_waiters();
         }
     }
-    pub fn is_cancelled(&self) -> bool { self.cancelled.load(Ordering::SeqCst) }
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
     pub async fn cancelled(&self) {
         if self.is_cancelled() {
             return;

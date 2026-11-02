@@ -63,7 +63,9 @@ pub fn load_workspace(root: &Path) -> ConfigResult<WorkspaceConfig> {
     let raw = read_yaml(&path)?;
 
     // `workspace:` block may be nested or flat at the root.
-    let ws_block = get(&raw, "workspace").cloned().unwrap_or_else(|| raw.clone());
+    let ws_block = get(&raw, "workspace")
+        .cloned()
+        .unwrap_or_else(|| raw.clone());
     let ws = yamlx::as_mapping(&ws_block, "workspace")?;
     let paths = get(&raw, "paths")
         .map(|v| yamlx::as_mapping(v, "paths"))
@@ -79,7 +81,9 @@ pub fn load_workspace(root: &Path) -> ConfigResult<WorkspaceConfig> {
         .unwrap_or_default();
 
     let pick = |m: &WithMap, key: &str, default: &str| -> String {
-        m.get(key).and_then(yamlx::as_string).unwrap_or_else(|| default.to_string())
+        m.get(key)
+            .and_then(yamlx::as_string)
+            .unwrap_or_else(|| default.to_string())
     };
 
     Ok(WorkspaceConfig {
@@ -119,13 +123,15 @@ pub fn load_pipeline_value(raw: Value, source: &str) -> ConfigResult<PipelineDef
 }
 
 fn parse_pipeline_value(raw: &Value, path: &Path) -> ConfigResult<PipelineDefinition> {
-
     let name = get(raw, "name")
         .and_then(yamlx::as_string)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
             ConfigError::new(
-                format!("Pipeline is missing required field 'name': {}", path.display()),
+                format!(
+                    "Pipeline is missing required field 'name': {}",
+                    path.display()
+                ),
                 "MISSING_PIPELINE_NAME",
             )
             .with_hint("Add `name: your-pipeline-name` near the top of the file.")
@@ -158,7 +164,9 @@ fn parse_pipeline_value(raw: &Value, path: &Path) -> ConfigResult<PipelineDefini
     Ok(PipelineDefinition {
         schema_version,
         name,
-        description: get(raw, "description").and_then(yamlx::as_string).unwrap_or_default(),
+        description: get(raw, "description")
+            .and_then(yamlx::as_string)
+            .unwrap_or_default(),
         context: map_field("context")?,
         repos: map_field("repos")?,
         target: map_field("target")?,
@@ -197,13 +205,19 @@ fn parse_steps(raw: &Value, path: &Path) -> ConfigResult<Vec<PipelineStep>> {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("step_{index}"));
 
-        let stype = get(map, "type").and_then(yamlx::as_string).filter(|s| !s.is_empty()).ok_or_else(|| {
-            ConfigError::new(
-                format!("Step {sid} in {} is missing required field 'type'", path.display()),
-                "MISSING_STEP_TYPE",
-            )
-            .with_hint("Add `type: note`, `type: command`, `type: file_check`, etc.")
-        })?;
+        let stype = get(map, "type")
+            .and_then(yamlx::as_string)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                ConfigError::new(
+                    format!(
+                        "Step {sid} in {} is missing required field 'type'",
+                        path.display()
+                    ),
+                    "MISSING_STEP_TYPE",
+                )
+                .with_hint("Add `type: note`, `type: command`, `type: file_check`, etc.")
+            })?;
 
         let rules = get(map, "rules")
             .map(|v| yamlx::as_mapping(v, &format!("steps.{sid}.rules")))
@@ -246,14 +260,24 @@ fn parse_steps(raw: &Value, path: &Path) -> ConfigResult<Vec<PipelineStep>> {
         steps.push(PipelineStep {
             id: sid.clone(),
             step_type: stype,
-            description: get(map, "description").and_then(yamlx::as_string).unwrap_or_default(),
-            repo: get(map, "repo").and_then(yamlx::as_string).unwrap_or_default(),
-            command: get(map, "command").and_then(yamlx::as_string).unwrap_or_default(),
-            risk: get(map, "risk").and_then(yamlx::as_string).unwrap_or_else(|| "low".into()),
+            description: get(map, "description")
+                .and_then(yamlx::as_string)
+                .unwrap_or_default(),
+            repo: get(map, "repo")
+                .and_then(yamlx::as_string)
+                .unwrap_or_default(),
+            command: get(map, "command")
+                .and_then(yamlx::as_string)
+                .unwrap_or_default(),
+            risk: get(map, "risk")
+                .and_then(yamlx::as_string)
+                .unwrap_or_else(|| "low".into()),
             requires_approval,
             required,
             needs,
-            run_if: get(map, "run_if").and_then(yamlx::as_string).unwrap_or_else(|| "all_success".into()),
+            run_if: get(map, "run_if")
+                .and_then(yamlx::as_string)
+                .unwrap_or_else(|| "all_success".into()),
             requires,
             provides,
             exclusive_resources,
@@ -305,7 +329,11 @@ pub struct PipelineCatalog {
 impl PipelineCatalog {
     pub fn new(root: &Path, workspace: WorkspaceConfig) -> Self {
         let pipeline_dir = root.join(&workspace.pipeline_dir);
-        Self { root: root.to_path_buf(), workspace, pipeline_dir }
+        Self {
+            root: root.to_path_buf(),
+            workspace,
+            pipeline_dir,
+        }
     }
 
     /// Convenience constructor that loads the workspace itself.
@@ -324,14 +352,23 @@ impl PipelineCatalog {
             .flatten()
             .flatten()
             .map(|e| e.path())
-            .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("yaml") | Some("yml")))
+            .filter(|p| {
+                matches!(
+                    p.extension().and_then(|e| e.to_str()),
+                    Some("yaml") | Some("yml")
+                )
+            })
             .collect();
         paths.sort();
         paths
             .into_iter()
             .map(|p| match load_pipeline(&p) {
                 Ok(def) => def.name,
-                Err(_) => p.file_stem().and_then(|s| s.to_str()).unwrap_or("?").to_string(),
+                Err(_) => p
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("?")
+                    .to_string(),
             })
             .collect()
     }
@@ -347,8 +384,10 @@ impl PipelineCatalog {
         if direct.exists() {
             return Ok(direct);
         }
-        Err(ConfigError::new(format!("Pipeline not found: {name}"), "PIPELINE_NOT_FOUND")
-            .with_hint("Run `pipecraft list` to see available pipelines."))
+        Err(
+            ConfigError::new(format!("Pipeline not found: {name}"), "PIPELINE_NOT_FOUND")
+                .with_hint("Run `pipecraft list` to see available pipelines."),
+        )
     }
 
     pub fn load(&self, name: &str) -> ConfigResult<PipelineDefinition> {

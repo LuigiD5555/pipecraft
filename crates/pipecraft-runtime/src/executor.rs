@@ -22,7 +22,12 @@ pub type StepFuture<'a> = Pin<Box<dyn Future<Output = StepResult> + Send + 'a>>;
 /// executors are isolated with `block_in_place` so unrelated tasks keep moving.
 pub trait StepExecutor: Send + Sync {
     fn step_type(&self) -> &'static str;
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult;
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult;
 
     fn run_async<'a>(
         &'a self,
@@ -30,9 +35,7 @@ pub trait StepExecutor: Send + Sync {
         pipeline: &'a PipelineDefinition,
         ctx: &'a ExecutionContext,
     ) -> StepFuture<'a> {
-        Box::pin(async move {
-            tokio::task::block_in_place(|| self.run(step, pipeline, ctx))
-        })
+        Box::pin(async move { tokio::task::block_in_place(|| self.run(step, pipeline, ctx)) })
     }
 }
 
@@ -48,8 +51,14 @@ pub fn error_result(
     if !hint.is_empty() {
         data.insert("hint".into(), serde_json::json!(hint));
     }
-    StepResult::new(step.id.clone(), step.step_type.clone(), false, status::FAILED, message)
-        .with_data(serde_json::Value::Object(data))
+    StepResult::new(
+        step.id.clone(),
+        step.step_type.clone(),
+        false,
+        status::FAILED,
+        message,
+    )
+    .with_data(serde_json::Value::Object(data))
 }
 
 /// Map a `ConfigError` (e.g. from repo resolution) onto a failed step result.
@@ -65,17 +74,26 @@ pub struct RepositoryResolver<'a> {
 
 impl<'a> RepositoryResolver<'a> {
     pub fn new(root: &Path, pipeline: &'a PipelineDefinition) -> Self {
-        Self { root: root.to_path_buf(), pipeline }
+        Self {
+            root: root.to_path_buf(),
+            pipeline,
+        }
     }
 
     pub fn resolve(&self, repo_id: &str) -> Result<PathBuf, ConfigError> {
-        let root = self.root.canonicalize().unwrap_or_else(|_| self.root.clone());
+        let root = self
+            .root
+            .canonicalize()
+            .unwrap_or_else(|_| self.root.clone());
         if repo_id.is_empty() {
             return Ok(root);
         }
         let repo = self.pipeline.repos.get(repo_id).ok_or_else(|| {
             ConfigError::new(
-                format!("Unknown repo '{repo_id}' in pipeline '{}'", self.pipeline.name),
+                format!(
+                    "Unknown repo '{repo_id}' in pipeline '{}'",
+                    self.pipeline.name
+                ),
                 "UNKNOWN_REPO",
             )
             .with_hint(format!(
@@ -84,12 +102,17 @@ impl<'a> RepositoryResolver<'a> {
         })?;
         if !repo.is_mapping() {
             return Err(ConfigError::new(
-                format!("Repo '{repo_id}' must be a mapping in pipeline '{}'", self.pipeline.name),
+                format!(
+                    "Repo '{repo_id}' must be a mapping in pipeline '{}'",
+                    self.pipeline.name
+                ),
                 "REPO_CONFIG_ERROR",
             )
             .with_hint("Use `repos: my_repo: {path: ../my-repo}`."));
         }
-        let path = yamlx::get(repo, "path").and_then(yamlx::as_string).unwrap_or_else(|| ".".into());
+        let path = yamlx::get(repo, "path")
+            .and_then(yamlx::as_string)
+            .unwrap_or_else(|| ".".into());
         let p = PathBuf::from(&path);
         if p.is_absolute() {
             Ok(p)
@@ -107,16 +130,20 @@ pub struct ExecutorRegistry {
 
 impl ExecutorRegistry {
     pub fn empty() -> Self {
-        Self { executors: BTreeMap::new() }
+        Self {
+            executors: BTreeMap::new(),
+        }
     }
 
     pub fn register(&mut self, executor: Box<dyn StepExecutor>) {
         let executor: Arc<dyn StepExecutor> = Arc::from(executor);
-        self.executors.insert(executor.step_type().to_string(), executor);
+        self.executors
+            .insert(executor.step_type().to_string(), executor);
     }
 
     pub fn register_arc(&mut self, executor: Arc<dyn StepExecutor>) {
-        self.executors.insert(executor.step_type().to_string(), executor);
+        self.executors
+            .insert(executor.step_type().to_string(), executor);
     }
 
     pub fn get(&self, step_type: &str) -> Option<Arc<dyn StepExecutor>> {

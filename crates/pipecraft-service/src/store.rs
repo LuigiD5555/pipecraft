@@ -28,7 +28,10 @@ pub enum JobStatus {
 
 impl JobStatus {
     pub fn terminal(&self) -> bool {
-        matches!(self, Self::Succeeded | Self::Failed | Self::Cancelled | Self::Interrupted)
+        matches!(
+            self,
+            Self::Succeeded | Self::Failed | Self::Cancelled | Self::Interrupted
+        )
     }
 }
 
@@ -59,7 +62,9 @@ pub struct JobRecord {
     pub warning: Option<String>,
 }
 
-fn default_runs_dir() -> String { ".pipelines/runs".into() }
+fn default_runs_dir() -> String {
+    ".pipelines/runs".into()
+}
 
 impl JobRecord {
     pub fn new(
@@ -94,7 +99,9 @@ impl JobRecord {
         }
     }
 
-    pub fn touch(&mut self) { self.updated_at = Utc::now().to_rfc3339(); }
+    pub fn touch(&mut self) {
+        self.updated_at = Utc::now().to_rfc3339();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -103,14 +110,20 @@ pub struct JobStore {
 }
 
 impl JobStore {
-    pub fn new(dir: PathBuf) -> Self { Self { dir } }
-    pub fn dir(&self) -> &Path { &self.dir }
+    pub fn new(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
 
     pub async fn prepare(&self) -> std::io::Result<()> {
         tokio::fs::create_dir_all(&self.dir).await
     }
 
-    pub fn path(&self, run_id: &str) -> PathBuf { self.dir.join(format!("{run_id}.json")) }
+    pub fn path(&self, run_id: &str) -> PathBuf {
+        self.dir.join(format!("{run_id}.json"))
+    }
 
     pub async fn save(&self, record: &JobRecord) -> std::io::Result<()> {
         self.prepare().await?;
@@ -133,7 +146,9 @@ impl JobStore {
             }
         }
         if let Some(parent) = path.parent() {
-            if let Ok(dir) = std::fs::File::open(parent) { let _ = dir.sync_all(); }
+            if let Ok(dir) = std::fs::File::open(parent) {
+                let _ = dir.sync_all();
+            }
         }
         Ok(())
     }
@@ -150,16 +165,22 @@ impl JobStore {
         let mut entries = tokio::fs::read_dir(&self.dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.extension().and_then(|value| value.to_str()) != Some("json") { continue; }
+            if path.extension().and_then(|value| value.to_str()) != Some("json") {
+                continue;
+            }
             let bytes = tokio::fs::read(&path).await?;
             let record = serde_json::from_slice::<JobRecord>(&bytes).map_err(|error| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData,
-                    format!("invalid durable job record {}: {error}", path.display()))
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("invalid durable job record {}: {error}", path.display()),
+                )
             })?;
             let expected = path.file_stem().and_then(|name| name.to_str());
             if expected != Some(record.run_id.as_str()) || out.contains_key(&record.run_id) {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
-                    format!("job identity mismatch or duplicate in {}", path.display())));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("job identity mismatch or duplicate in {}", path.display()),
+                ));
             }
             out.insert(record.run_id.clone(), record);
         }
@@ -176,7 +197,9 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let store = JobStore::new(temp.path().join("jobs"));
         store.prepare().await.unwrap();
-        tokio::fs::write(store.path("orphan"), b"{broken").await.unwrap();
+        tokio::fs::write(store.path("orphan"), b"{broken")
+            .await
+            .unwrap();
         let error = store.load_all().await.unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
         assert!(error.to_string().contains("orphan.json"));
@@ -195,7 +218,13 @@ mod tests {
             from_step: None,
             only: vec![],
         };
-        let record = JobRecord::new("run-1".into(), request, ".pipelines/runs", dir.path(), "snapshot.yaml".into());
+        let record = JobRecord::new(
+            "run-1".into(),
+            request,
+            ".pipelines/runs",
+            dir.path(),
+            "snapshot.yaml".into(),
+        );
         store.save(&record).await.unwrap();
         let loaded = store.load("run-1").await.unwrap();
         assert_eq!(loaded.run_id, "run-1");

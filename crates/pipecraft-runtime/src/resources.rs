@@ -6,8 +6,8 @@
 //! resource while shared users may coexist with other shared users.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use pipecraft_core::model::PipelineStep;
 use tokio::sync::Notify;

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::time::{Duration, Instant};
 
-use globset::{Glob, GlobSetBuilder, GlobSet};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use walkdir::WalkDir;
 
 use pipecraft_core::model::{PipelineDefinition, PipelineStep};
@@ -18,7 +18,9 @@ use pipecraft_report::{status, StepResult};
 
 use crate::context::ExecutionContext;
 use crate::events::emit_event;
-use crate::executor::{error_result, error_result_from_config, RepositoryResolver, StepExecutor, StepFuture};
+use crate::executor::{
+    error_result, error_result_from_config, RepositoryResolver, StepExecutor, StepFuture,
+};
 use crate::process::run_process_with_retries_async;
 
 const DEFAULT_IGNORE: &[&str] = &[
@@ -40,11 +42,19 @@ impl StepExecutor for NoteExecutor {
     fn step_type(&self) -> &'static str {
         "note"
     }
-    fn run(&self, step: &PipelineStep, _p: &PipelineDefinition, _c: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        _p: &PipelineDefinition,
+        _c: &ExecutionContext,
+    ) -> StepResult {
         let msg = if !step.description.is_empty() {
             step.description.clone()
         } else {
-            step.with.get("text").and_then(yamlx::as_string).unwrap_or_else(|| "note".into())
+            step.with
+                .get("text")
+                .and_then(yamlx::as_string)
+                .unwrap_or_else(|| "note".into())
         };
         StepResult::new(&step.id, &step.step_type, true, status::OK, msg)
     }
@@ -57,7 +67,12 @@ impl StepExecutor for ChecklistExecutor {
     fn step_type(&self) -> &'static str {
         "checklist"
     }
-    fn run(&self, step: &PipelineStep, _p: &PipelineDefinition, _c: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        _p: &PipelineDefinition,
+        _c: &ExecutionContext,
+    ) -> StepResult {
         let items = match step.with.get("items") {
             Some(v) if v.is_sequence() => v.as_sequence().unwrap().clone(),
             None => Vec::new(),
@@ -92,9 +107,20 @@ impl StepExecutor for ManualApprovalExecutor {
     fn step_type(&self) -> &'static str {
         "manual_approval"
     }
-    fn run(&self, step: &PipelineStep, _p: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        _p: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         if ctx.approve {
-            StepResult::new(&step.id, &step.step_type, true, status::OK, "approval supplied")
+            StepResult::new(
+                &step.id,
+                &step.step_type,
+                true,
+                status::OK,
+                "approval supplied",
+            )
         } else {
             StepResult::new(
                 &step.id,
@@ -114,10 +140,20 @@ impl StepExecutor for CommandExecutor {
     fn step_type(&self) -> &'static str {
         "command"
     }
-    fn run_async<'a>(&'a self, step: &'a PipelineStep, pipeline: &'a PipelineDefinition, ctx: &'a ExecutionContext) -> StepFuture<'a> {
+    fn run_async<'a>(
+        &'a self,
+        step: &'a PipelineStep,
+        pipeline: &'a PipelineDefinition,
+        ctx: &'a ExecutionContext,
+    ) -> StepFuture<'a> {
         Box::pin(run_command_async(step, pipeline, ctx))
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         if step.requires_approval && !ctx.approve {
             return StepResult::new(
                 &step.id,
@@ -138,7 +174,13 @@ impl StepExecutor for CommandExecutor {
             .with
             .get("command")
             .and_then(yamlx::as_string)
-            .or_else(|| if step.command.is_empty() { None } else { Some(step.command.clone()) });
+            .or_else(|| {
+                if step.command.is_empty() {
+                    None
+                } else {
+                    Some(step.command.clone())
+                }
+            });
 
         let (display, is_shell) = match (&argv, &shell_command) {
             (Some(a), _) => (a.join(" "), false),
@@ -168,7 +210,9 @@ impl StepExecutor for CommandExecutor {
                 out.push_str(&format!("\ntimeout: {t}s"));
             }
             if retries > 0 {
-                out.push_str(&format!("\nretries: {retries}, retry_delay: {retry_delay}s"));
+                out.push_str(&format!(
+                    "\nretries: {retries}, retry_delay: {retry_delay}s"
+                ));
             }
             out.push_str(&format!("\nlogs_dir: {}", ctx.logs_dir.display()));
             return StepResult::new(
@@ -189,7 +233,18 @@ impl StepExecutor for CommandExecutor {
             }));
         }
 
-        run_process_with_retries(step, pipeline, ctx, &repo_root, argv, shell_command, timeout, retries, retry_delay, None)
+        run_process_with_retries(
+            step,
+            pipeline,
+            ctx,
+            &repo_root,
+            argv,
+            shell_command,
+            timeout,
+            retries,
+            retry_delay,
+            None,
+        )
     }
 }
 
@@ -216,7 +271,13 @@ async fn run_command_async(
         .with
         .get("command")
         .and_then(yamlx::as_string)
-        .or_else(|| if step.command.is_empty() { None } else { Some(step.command.clone()) });
+        .or_else(|| {
+            if step.command.is_empty() {
+                None
+            } else {
+                Some(step.command.clone())
+            }
+        });
     let (display, is_shell) = match (&argv, &shell_command) {
         (Some(args), _) => (args.join(" "), false),
         (None, Some(command)) => (command.clone(), true),
@@ -234,7 +295,11 @@ async fn run_command_async(
     let retry_delay = u64_field(step, "retry_delay").unwrap_or(0);
     if ctx.dry_run {
         let mut output = format!("cwd: {}\ncommand: {display}", repo_root.display());
-        output.push_str(if is_shell { "\nmode: shell (sh -c) — riskier than argv" } else { "\nmode: argv (no shell)" });
+        output.push_str(if is_shell {
+            "\nmode: shell (sh -c) — riskier than argv"
+        } else {
+            "\nmode: argv (no shell)"
+        });
         if let Some(seconds) = timeout {
             output.push_str(&format!("\ntimeout: {seconds}s"));
         }
@@ -242,21 +307,29 @@ async fn run_command_async(
             output.push_str(&format!("\ninactivity_timeout: {seconds}s"));
         }
         if retries > 0 {
-            output.push_str(&format!("\nretries: {retries}, retry_delay: {retry_delay}s"));
+            output.push_str(&format!(
+                "\nretries: {retries}, retry_delay: {retry_delay}s"
+            ));
         }
         output.push_str(&format!("\nlogs_dir: {}", ctx.logs_dir.display()));
-        return StepResult::new(&step.id, &step.step_type, true, status::DRY_RUN, "command not executed")
-            .with_output(output)
-            .with_data(serde_json::json!({
-                "cwd": repo_root.display().to_string(),
-                "command": display,
-                "shell": is_shell,
-                "timeout_seconds": timeout,
-                "inactivity_timeout_seconds": u64_field(step, "inactivity_timeout"),
-                "retries": retries,
-                "retry_delay_seconds": retry_delay,
-                "process_runtime": "tokio",
-            }));
+        return StepResult::new(
+            &step.id,
+            &step.step_type,
+            true,
+            status::DRY_RUN,
+            "command not executed",
+        )
+        .with_output(output)
+        .with_data(serde_json::json!({
+            "cwd": repo_root.display().to_string(),
+            "command": display,
+            "shell": is_shell,
+            "timeout_seconds": timeout,
+            "inactivity_timeout_seconds": u64_field(step, "inactivity_timeout"),
+            "retries": retries,
+            "retry_delay_seconds": retry_delay,
+            "process_runtime": "tokio",
+        }));
     }
     run_process_with_retries_async(
         step,
@@ -285,10 +358,20 @@ impl StepExecutor for PluginExecutor {
     fn step_type(&self) -> &'static str {
         "plugin"
     }
-    fn run_async<'a>(&'a self, step: &'a PipelineStep, pipeline: &'a PipelineDefinition, ctx: &'a ExecutionContext) -> StepFuture<'a> {
+    fn run_async<'a>(
+        &'a self,
+        step: &'a PipelineStep,
+        pipeline: &'a PipelineDefinition,
+        ctx: &'a ExecutionContext,
+    ) -> StepFuture<'a> {
         Box::pin(run_plugin_async(step, pipeline, ctx))
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         let repo_root = match RepositoryResolver::new(&ctx.root, pipeline).resolve(&step.repo) {
             Ok(p) => p,
             Err(e) => return error_result_from_config(step, &e),
@@ -314,9 +397,18 @@ impl StepExecutor for PluginExecutor {
         });
         if ctx.dry_run {
             let display = argv.clone().unwrap_or_default().join(" ");
-            return StepResult::new(&step.id, &step.step_type, true, status::DRY_RUN, "plugin not executed")
-                .with_output(format!("cwd: {}\nplugin: {display}\nprotocol: pipecraft.plugin/v1", repo_root.display()))
-                .with_data(serde_json::json!({ "payload_preview": payload }));
+            return StepResult::new(
+                &step.id,
+                &step.step_type,
+                true,
+                status::DRY_RUN,
+                "plugin not executed",
+            )
+            .with_output(format!(
+                "cwd: {}\nplugin: {display}\nprotocol: pipecraft.plugin/v1",
+                repo_root.display()
+            ))
+            .with_data(serde_json::json!({ "payload_preview": payload }));
         }
         let result = run_process_with_retries(
             step,
@@ -364,9 +456,18 @@ async fn run_plugin_async(
     });
     if ctx.dry_run {
         let display = argv.clone().unwrap_or_default().join(" ");
-        return StepResult::new(&step.id, &step.step_type, true, status::DRY_RUN, "plugin not executed")
-            .with_output(format!("cwd: {}\nplugin: {display}\nprotocol: pipecraft.plugin/v1", repo_root.display()))
-            .with_data(serde_json::json!({ "payload_preview": payload, "process_runtime": "tokio" }));
+        return StepResult::new(
+            &step.id,
+            &step.step_type,
+            true,
+            status::DRY_RUN,
+            "plugin not executed",
+        )
+        .with_output(format!(
+            "cwd: {}\nplugin: {display}\nprotocol: pipecraft.plugin/v1",
+            repo_root.display()
+        ))
+        .with_data(serde_json::json!({ "payload_preview": payload, "process_runtime": "tokio" }));
     }
     let result = run_process_with_retries_async(
         step,
@@ -387,18 +488,35 @@ async fn run_plugin_async(
 fn parse_plugin_result(step: &PipelineStep, result: StepResult) -> StepResult {
     let process_success = result.success;
     let process_data = result.data.clone();
-    let stdout_owned = result.data.get("stdout").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let stdout_owned = result
+        .data
+        .get("stdout")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let Ok(json) = serde_json::from_str::<serde_json::Value>(stdout_owned.trim()) else {
         return result;
     };
-    let declared_success = json.get("success").and_then(|v| v.as_bool()).unwrap_or(process_success);
+    let declared_success = json
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(process_success);
     // A non-zero process exit always remains a failure, but a structured plugin
     // failure is still parsed so its message/error data are not discarded.
     let success = process_success && declared_success;
-    let status_value = json.get("status").and_then(|v| v.as_str()).unwrap_or(if success { status::OK } else { status::FAILED });
-    let message = json.get("message").and_then(|v| v.as_str()).unwrap_or("plugin completed");
+    let status_value = json
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or(if success { status::OK } else { status::FAILED });
+    let message = json
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or("plugin completed");
     let output = json.get("output").and_then(|v| v.as_str()).unwrap_or("");
-    let mut data = json.get("data").cloned().unwrap_or_else(|| serde_json::json!({}));
+    let mut data = json
+        .get("data")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
     if let Some(map) = data.as_object_mut() {
         map.insert("process".into(), process_data);
     }
@@ -414,7 +532,12 @@ impl StepExecutor for FileCheckExecutor {
     fn step_type(&self) -> &'static str {
         "file_check"
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         run_forbidden_scan(step, pipeline, ctx, "file_check")
     }
 }
@@ -424,12 +547,22 @@ impl StepExecutor for BoundaryCheckExecutor {
     fn step_type(&self) -> &'static str {
         "boundary_check"
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         run_forbidden_scan(step, pipeline, ctx, "boundary_check")
     }
 }
 
-fn run_forbidden_scan(step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext, prefix: &str) -> StepResult {
+fn run_forbidden_scan(
+    step: &PipelineStep,
+    pipeline: &PipelineDefinition,
+    ctx: &ExecutionContext,
+    prefix: &str,
+) -> StepResult {
     let repo_root = match RepositoryResolver::new(&ctx.root, pipeline).resolve(&step.repo) {
         Ok(p) => p,
         Err(e) => return error_result_from_config(step, &e),
@@ -457,7 +590,11 @@ fn run_forbidden_scan(step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &
         &step.step_type,
         ok,
         if ok { status::OK } else { status::FAILED },
-        if ok { "boundary/file check passed".into() } else { format!("{} findings", findings.len()) },
+        if ok {
+            "boundary/file check passed".into()
+        } else {
+            format!("{} findings", findings.len())
+        },
     )
     .with_output(findings.join("\n"))
     .with_data(data)
@@ -470,15 +607,35 @@ impl StepExecutor for GitDiffExecutor {
     fn step_type(&self) -> &'static str {
         "git_diff"
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         let repo_root = match RepositoryResolver::new(&ctx.root, pipeline).resolve(&step.repo) {
             Ok(p) => p,
             Err(e) => return error_result_from_config(step, &e),
         };
-        let mode = step.with.get("mode").and_then(yamlx::as_string).unwrap_or_else(|| "status".into());
+        let mode = step
+            .with
+            .get("mode")
+            .and_then(yamlx::as_string)
+            .unwrap_or_else(|| "status".into());
         let argv = git_diff_argv(&mode);
         // `git_diff` is read-only, so it is allowed even in dry-run mode.
-        run_process_with_retries(step, pipeline, ctx, &repo_root, Some(argv), None, u64_field(step, "timeout"), 0, 0, None)
+        run_process_with_retries(
+            step,
+            pipeline,
+            ctx,
+            &repo_root,
+            Some(argv),
+            None,
+            u64_field(step, "timeout"),
+            0,
+            0,
+            None,
+        )
     }
 
     fn run_async<'a>(
@@ -495,7 +652,12 @@ fn git_diff_argv(mode: &str) -> Vec<String> {
     match mode {
         "stat" => vec!["git".into(), "diff".into(), "--stat".into()],
         "name-only" => vec!["git".into(), "diff".into(), "--name-only".into()],
-        "cached" => vec!["git".into(), "diff".into(), "--cached".into(), "--stat".into()],
+        "cached" => vec![
+            "git".into(),
+            "diff".into(),
+            "--cached".into(),
+            "--stat".into(),
+        ],
         _ => vec!["git".into(), "status".into(), "--short".into()],
     }
 }
@@ -536,18 +698,40 @@ impl StepExecutor for CopyOrSyncExecutor {
     fn step_type(&self) -> &'static str {
         "copy_or_sync"
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
         if step.requires_approval && !ctx.approve {
-            return StepResult::new(&step.id, &step.step_type, false, status::NEEDS_APPROVAL, "copy/sync requires approval");
+            return StepResult::new(
+                &step.id,
+                &step.step_type,
+                false,
+                status::NEEDS_APPROVAL,
+                "copy/sync requires approval",
+            );
         }
         let repo_root = match RepositoryResolver::new(&ctx.root, pipeline).resolve(&step.repo) {
             Ok(p) => p,
             Err(e) => return error_result_from_config(step, &e),
         };
-        let source = step.with.get("source").and_then(yamlx::as_string).unwrap_or_else(|| ".".into());
+        let source = step
+            .with
+            .get("source")
+            .and_then(yamlx::as_string)
+            .unwrap_or_else(|| ".".into());
         let dest = match step.with.get("destination").and_then(yamlx::as_string) {
             Some(s) if !s.trim().is_empty() => s,
-            _ => return error_result(step, "copy_or_sync requires with.destination", "COPY_CONFIG_ERROR", "Set `with.destination` to a path."),
+            _ => {
+                return error_result(
+                    step,
+                    "copy_or_sync requires with.destination",
+                    "COPY_CONFIG_ERROR",
+                    "Set `with.destination` to a path.",
+                )
+            }
         };
         let source_abs = resolve_path(&repo_root, &source);
         let dest_abs = resolve_path(&repo_root, &dest);
@@ -557,7 +741,12 @@ impl StepExecutor for CopyOrSyncExecutor {
         let include_set = build_optional_globset(&includes);
         let exclude_set = build_globset(&excludes);
         if !source_abs.exists() {
-            return error_result(step, format!("source path does not exist: {}", source_abs.display()), "COPY_SOURCE_MISSING", "Correct `with.source`.");
+            return error_result(
+                step,
+                format!("source path does not exist: {}", source_abs.display()),
+                "COPY_SOURCE_MISSING",
+                "Correct `with.source`.",
+            );
         }
         let mut planned = Vec::new();
         for entry in WalkDir::new(&source_abs).into_iter().filter_map(|e| e.ok()) {
@@ -585,13 +774,19 @@ impl StepExecutor for CopyOrSyncExecutor {
             }
         }
         if ctx.dry_run {
-            return StepResult::new(&step.id, &step.step_type, true, status::DRY_RUN, format!("{} files planned", planned.len()))
-                .with_output(planned.join("\n"))
-                .with_data(serde_json::json!({
-                    "source": source_abs.display().to_string(),
-                    "destination": dest_abs.display().to_string(),
-                    "planned_files": planned.len(),
-                }));
+            return StepResult::new(
+                &step.id,
+                &step.step_type,
+                true,
+                status::DRY_RUN,
+                format!("{} files planned", planned.len()),
+            )
+            .with_output(planned.join("\n"))
+            .with_data(serde_json::json!({
+                "source": source_abs.display().to_string(),
+                "destination": dest_abs.display().to_string(),
+                "planned_files": planned.len(),
+            }));
         }
         let mut copied = 0usize;
         for rel in &planned {
@@ -599,11 +794,21 @@ impl StepExecutor for CopyOrSyncExecutor {
             let dst = dest_abs.join(rel);
             if let Some(parent) = dst.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
-                    return error_result(step, format!("could not create destination dir: {e}"), "COPY_DEST_CREATE_ERROR", "Check destination permissions.");
+                    return error_result(
+                        step,
+                        format!("could not create destination dir: {e}"),
+                        "COPY_DEST_CREATE_ERROR",
+                        "Check destination permissions.",
+                    );
                 }
             }
             if let Err(e) = std::fs::copy(&src, &dst) {
-                return error_result(step, format!("could not copy {}: {e}", rel), "COPY_FILE_ERROR", "Check file permissions and destination path.");
+                return error_result(
+                    step,
+                    format!("could not copy {}: {e}", rel),
+                    "COPY_FILE_ERROR",
+                    "Check file permissions and destination path.",
+                );
             }
             copied += 1;
         }
@@ -616,9 +821,15 @@ impl StepExecutor for CopyOrSyncExecutor {
         if let Some(path) = artifact {
             data["artifact"] = serde_json::json!(path);
         }
-        StepResult::new(&step.id, &step.step_type, true, status::OK, format!("copied {copied} files"))
-            .with_output(planned.join("\n"))
-            .with_data(data)
+        StepResult::new(
+            &step.id,
+            &step.step_type,
+            true,
+            status::OK,
+            format!("copied {copied} files"),
+        )
+        .with_output(planned.join("\n"))
+        .with_data(data)
     }
 }
 
@@ -629,8 +840,14 @@ impl StepExecutor for TargetPlanExecutor {
     fn step_type(&self) -> &'static str {
         "target_plan"
     }
-    fn run(&self, step: &PipelineStep, pipeline: &PipelineDefinition, ctx: &ExecutionContext) -> StepResult {
-        let target_name = resolve_target_name(step, pipeline, ctx).unwrap_or_else(|| "default".into());
+    fn run(
+        &self,
+        step: &PipelineStep,
+        pipeline: &PipelineDefinition,
+        ctx: &ExecutionContext,
+    ) -> StepResult {
+        let target_name =
+            resolve_target_name(step, pipeline, ctx).unwrap_or_else(|| "default".into());
 
         let mut merged = pipeline.target.clone();
         if let Some(serde_yaml::Value::Mapping(named)) = pipeline.targets.get(&target_name) {
@@ -650,11 +867,19 @@ impl StepExecutor for TargetPlanExecutor {
         if merged.is_empty() {
             lines.push("No target metadata configured.".into());
         }
-        lines.push("No commit, push, release, or destructive sync is performed by this step.".into());
+        lines.push(
+            "No commit, push, release, or destructive sync is performed by this step.".into(),
+        );
 
-        StepResult::new(&step.id, &step.step_type, true, status::OK, "target plan generated")
-            .with_output(lines.join("\n"))
-            .with_data(serde_json::json!({ "target": target_name }))
+        StepResult::new(
+            &step.id,
+            &step.step_type,
+            true,
+            status::OK,
+            "target plan generated",
+        )
+        .with_output(lines.join("\n"))
+        .with_data(serde_json::json!({ "target": target_name }))
     }
 }
 
@@ -694,7 +919,9 @@ fn u64_field(step: &PipelineStep, key: &str) -> Option<u64> {
 }
 
 fn list_field(map: &pipecraft_core::yamlx::WithMap, key: &str) -> Vec<String> {
-    map.get(key).and_then(|v| yamlx::as_string_list(v, key).ok()).unwrap_or_default()
+    map.get(key)
+        .and_then(|v| yamlx::as_string_list(v, key).ok())
+        .unwrap_or_default()
 }
 
 fn build_globset(patterns: &[String]) -> GlobSet {
@@ -704,25 +931,46 @@ fn build_globset(patterns: &[String]) -> GlobSet {
             builder.add(g);
         }
     }
-    builder.build().unwrap_or_else(|_| GlobSetBuilder::new().build().unwrap())
+    builder
+        .build()
+        .unwrap_or_else(|_| GlobSetBuilder::new().build().unwrap())
 }
 
 fn build_optional_globset(patterns: &[String]) -> Option<GlobSet> {
-    if patterns.is_empty() { None } else { Some(build_globset(patterns)) }
+    if patterns.is_empty() {
+        None
+    } else {
+        Some(build_globset(patterns))
+    }
 }
 
 fn resolve_path(base: &Path, value: &str) -> PathBuf {
     let p = PathBuf::from(value);
-    if p.is_absolute() { p } else { base.join(p) }
+    if p.is_absolute() {
+        p
+    } else {
+        base.join(p)
+    }
 }
 
 fn safe_name(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
-fn write_artifact(ctx: &ExecutionContext, step_id: &str, filename: &str, content: &str) -> Option<String> {
+fn write_artifact(
+    ctx: &ExecutionContext,
+    step_id: &str,
+    filename: &str,
+    content: &str,
+) -> Option<String> {
     let dir = ctx.artifacts_dir.join(safe_name(step_id));
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join(filename);
@@ -749,7 +997,12 @@ fn build_command(
 ) -> Result<Command, StepResult> {
     let mut cmd = if let Some(parts) = argv {
         if parts.is_empty() {
-            return Err(error_result(step, "argv cannot be empty", "COMMAND_CONFIG_ERROR", "Set with.argv to a non-empty list."));
+            return Err(error_result(
+                step,
+                "argv cannot be empty",
+                "COMMAND_CONFIG_ERROR",
+                "Set with.argv to a non-empty list.",
+            ));
         }
         let mut c = Command::new(&parts[0]);
         c.args(&parts[1..]);
@@ -759,7 +1012,12 @@ fn build_command(
         c.arg("-c").arg(display);
         c
     } else {
-        return Err(error_result(step, "missing argv/command", "COMMAND_CONFIG_ERROR", "Set with.argv or with.command."));
+        return Err(error_result(
+            step,
+            "missing argv/command",
+            "COMMAND_CONFIG_ERROR",
+            "Set with.argv or with.command.",
+        ));
     };
     cmd.current_dir(cwd)
         .stdout(Stdio::piped())
@@ -778,9 +1036,15 @@ fn build_command(
         .env("PIPECRAFT_PIPELINE", &pipeline.name)
         .env("PIPECRAFT_RUN_ID", &ctx.run_id)
         .env("PIPECRAFT_LABELS", ctx.labels.join(" "))
-        .env("PIPECRAFT_DRY_RUN", if ctx.dry_run { "true" } else { "false" })
+        .env(
+            "PIPECRAFT_DRY_RUN",
+            if ctx.dry_run { "true" } else { "false" },
+        )
         .env("PIPECRAFT_RUN_DIR", ctx.run_dir.display().to_string())
-        .env("PIPECRAFT_ARTIFACTS_DIR", ctx.artifacts_dir.display().to_string())
+        .env(
+            "PIPECRAFT_ARTIFACTS_DIR",
+            ctx.artifacts_dir.display().to_string(),
+        )
         .env("PIPECRAFT_LOGS_DIR", ctx.logs_dir.display().to_string());
     #[cfg(unix)]
     {
@@ -805,7 +1069,11 @@ fn run_process_with_retries(
 ) -> StepResult {
     let attempts = retries + 1;
     let start_all = Instant::now();
-    let display = argv.clone().map(|a| a.join(" ")).or(shell_command.clone()).unwrap_or_default();
+    let display = argv
+        .clone()
+        .map(|a| a.join(" "))
+        .or(shell_command.clone())
+        .unwrap_or_default();
     let mut last: Option<StepResult> = None;
 
     for attempt in 1..=attempts {
@@ -842,8 +1110,25 @@ fn run_process_with_retries(
         let waited = wait_with_timeout(child, timeout, inactivity_timeout, ctx, step);
         let duration_ms = started.elapsed().as_millis() as u64;
         let result = match waited {
-            Ok((out, timed_out, cancelled)) => process_output(step, ctx, cwd, &display, out, timed_out, cancelled, attempt, attempts, duration_ms, start_all.elapsed().as_millis() as u64),
-            Err(e) => error_result(step, format!("command wait failed: {e}"), "COMMAND_WAIT_ERROR", "Keep the report and inspect OS-level process limits."),
+            Ok((out, timed_out, cancelled)) => process_output(
+                step,
+                ctx,
+                cwd,
+                &display,
+                out,
+                timed_out,
+                cancelled,
+                attempt,
+                attempts,
+                duration_ms,
+                start_all.elapsed().as_millis() as u64,
+            ),
+            Err(e) => error_result(
+                step,
+                format!("command wait failed: {e}"),
+                "COMMAND_WAIT_ERROR",
+                "Keep the report and inspect OS-level process limits.",
+            ),
         };
         let ok = result.success;
         let was_cancelled = result.status == status::CANCELLED || ctx.cancellation.is_cancelled();
@@ -858,10 +1143,19 @@ fn run_process_with_retries(
             while Instant::now() < until && !ctx.cancellation.is_cancelled() {
                 std::thread::sleep(Duration::from_millis(25));
             }
-            if ctx.cancellation.is_cancelled() { break; }
+            if ctx.cancellation.is_cancelled() {
+                break;
+            }
         }
     }
-    last.unwrap_or_else(|| error_result(step, "command did not run", "COMMAND_INTERNAL_ERROR", "This is a PipeCraft bug."))
+    last.unwrap_or_else(|| {
+        error_result(
+            step,
+            "command did not run",
+            "COMMAND_INTERNAL_ERROR",
+            "This is a PipeCraft bug.",
+        )
+    })
 }
 
 fn wait_with_timeout(
@@ -876,14 +1170,20 @@ fn wait_with_timeout(
         Done,
     }
 
-    fn reader_thread<R: Read + Send + 'static>(reader: R, stream: &'static str, tx: std::sync::mpsc::Sender<StreamMessage>) {
+    fn reader_thread<R: Read + Send + 'static>(
+        reader: R,
+        stream: &'static str,
+        tx: std::sync::mpsc::Sender<StreamMessage>,
+    ) {
         std::thread::spawn(move || {
             let mut reader = BufReader::new(reader);
             loop {
                 let mut bytes = Vec::new();
                 match reader.read_until(b'\n', &mut bytes) {
                     Ok(0) => break,
-                    Ok(_) => { let _ = tx.send(StreamMessage::Chunk(stream, bytes)); }
+                    Ok(_) => {
+                        let _ = tx.send(StreamMessage::Chunk(stream, bytes));
+                    }
                     Err(_) => break,
                 }
             }
@@ -895,8 +1195,14 @@ fn wait_with_timeout(
     let stderr = child.stderr.take();
     let (tx, rx) = std::sync::mpsc::channel();
     let mut readers = 0usize;
-    if let Some(out) = stdout { readers += 1; reader_thread(out, "stdout", tx.clone()); }
-    if let Some(err) = stderr { readers += 1; reader_thread(err, "stderr", tx.clone()); }
+    if let Some(out) = stdout {
+        readers += 1;
+        reader_thread(out, "stdout", tx.clone());
+    }
+    if let Some(err) = stderr {
+        readers += 1;
+        reader_thread(err, "stderr", tx.clone());
+    }
     drop(tx);
 
     let started = Instant::now();
@@ -914,12 +1220,21 @@ fn wait_with_timeout(
             match message {
                 StreamMessage::Chunk(stream, bytes) => {
                     last_activity = Instant::now();
-                    if stream == "stdout" { stdout_bytes.extend_from_slice(&bytes); } else { stderr_bytes.extend_from_slice(&bytes); }
+                    if stream == "stdout" {
+                        stdout_bytes.extend_from_slice(&bytes);
+                    } else {
+                        stderr_bytes.extend_from_slice(&bytes);
+                    }
                     let text = String::from_utf8_lossy(&bytes).into_owned();
-                    let _ = emit_event(ctx, "process_output", Some(&step.id), serde_json::json!({
-                        "stream": stream,
-                        "text": text,
-                    }));
+                    let _ = emit_event(
+                        ctx,
+                        "process_output",
+                        Some(&step.id),
+                        serde_json::json!({
+                            "stream": stream,
+                            "text": text,
+                        }),
+                    );
                 }
                 StreamMessage::Done => done_readers += 1,
             }
@@ -929,10 +1244,15 @@ fn wait_with_timeout(
             exit_status = child.try_wait()?;
         }
         if exit_status.is_none() && last_heartbeat.elapsed() >= Duration::from_secs(5) {
-            let _ = emit_event(ctx, "process_heartbeat", Some(&step.id), serde_json::json!({
-                "elapsed_ms": started.elapsed().as_millis() as u64,
-                "inactive_ms": last_activity.elapsed().as_millis() as u64,
-            }));
+            let _ = emit_event(
+                ctx,
+                "process_heartbeat",
+                Some(&step.id),
+                serde_json::json!({
+                    "elapsed_ms": started.elapsed().as_millis() as u64,
+                    "inactive_ms": last_activity.elapsed().as_millis() as u64,
+                }),
+            );
             last_heartbeat = Instant::now();
         }
         if exit_status.is_some() && done_readers >= readers {
@@ -941,20 +1261,38 @@ fn wait_with_timeout(
 
         if exit_status.is_none() && ctx.cancellation.is_cancelled() {
             cancelled = true;
-            let _ = emit_event(ctx, "process_cancelled", Some(&step.id), serde_json::json!({}));
+            let _ = emit_event(
+                ctx,
+                "process_cancelled",
+                Some(&step.id),
+                serde_json::json!({}),
+            );
             exit_status = Some(terminate_process_group(&mut child)?);
         }
 
-        let total_expired = timeout.map(|seconds| started.elapsed() >= Duration::from_secs(seconds)).unwrap_or(false);
-        let inactive_expired = inactivity_timeout.map(|seconds| last_activity.elapsed() >= Duration::from_secs(seconds)).unwrap_or(false);
+        let total_expired = timeout
+            .map(|seconds| started.elapsed() >= Duration::from_secs(seconds))
+            .unwrap_or(false);
+        let inactive_expired = inactivity_timeout
+            .map(|seconds| last_activity.elapsed() >= Duration::from_secs(seconds))
+            .unwrap_or(false);
         if exit_status.is_none() && (total_expired || inactive_expired) {
             timed_out = true;
-            let reason = if inactive_expired { "inactivity_timeout" } else { "timeout" };
-            let _ = emit_event(ctx, "process_timeout", Some(&step.id), serde_json::json!({
-                "reason": reason,
-                "timeout": timeout,
-                "inactivity_timeout": inactivity_timeout,
-            }));
+            let reason = if inactive_expired {
+                "inactivity_timeout"
+            } else {
+                "timeout"
+            };
+            let _ = emit_event(
+                ctx,
+                "process_timeout",
+                Some(&step.id),
+                serde_json::json!({
+                    "reason": reason,
+                    "timeout": timeout,
+                    "inactivity_timeout": inactivity_timeout,
+                }),
+            );
             exit_status = Some(terminate_process_group(&mut child)?);
         }
 
@@ -964,19 +1302,36 @@ fn wait_with_timeout(
     // Drain messages queued between the final check and reader termination.
     while let Ok(message) = rx.try_recv() {
         if let StreamMessage::Chunk(stream, bytes) = message {
-            if stream == "stdout" { stdout_bytes.extend_from_slice(&bytes); } else { stderr_bytes.extend_from_slice(&bytes); }
+            if stream == "stdout" {
+                stdout_bytes.extend_from_slice(&bytes);
+            } else {
+                stderr_bytes.extend_from_slice(&bytes);
+            }
         }
     }
 
-    let status = match exit_status { Some(s) => s, None => child.wait()? };
-    Ok((Output { status, stdout: stdout_bytes, stderr: stderr_bytes }, timed_out, cancelled))
+    let status = match exit_status {
+        Some(s) => s,
+        None => child.wait()?,
+    };
+    Ok((
+        Output {
+            status,
+            stdout: stdout_bytes,
+            stderr: stderr_bytes,
+        },
+        timed_out,
+        cancelled,
+    ))
 }
 
 fn terminate_process_group(child: &mut std::process::Child) -> std::io::Result<ExitStatus> {
     #[cfg(unix)]
     {
         let pgid = child.id() as i32;
-        unsafe { libc::kill(-pgid, libc::SIGTERM); }
+        unsafe {
+            libc::kill(-pgid, libc::SIGTERM);
+        }
         let deadline = Instant::now() + Duration::from_millis(500);
         while Instant::now() < deadline {
             if let Some(status) = child.try_wait()? {
@@ -984,7 +1339,9 @@ fn terminate_process_group(child: &mut std::process::Child) -> std::io::Result<E
             }
             std::thread::sleep(Duration::from_millis(25));
         }
-        unsafe { libc::kill(-pgid, libc::SIGKILL); }
+        unsafe {
+            libc::kill(-pgid, libc::SIGKILL);
+        }
         return child.wait();
     }
     #[cfg(not(unix))]
@@ -1019,9 +1376,27 @@ fn process_output(
         }
         combined.push_str(&stderr);
     }
-    let stdout_log = write_log(ctx, &step.id, &format!("attempt-{attempt}-stdout.log"), &out.stdout);
-    let stderr_log = write_log(ctx, &step.id, &format!("attempt-{attempt}-stderr.log"), &out.stderr);
-    let status_value = if cancelled { status::CANCELLED } else if timed_out { status::TIMEOUT } else if ok { status::OK } else { status::FAILED };
+    let stdout_log = write_log(
+        ctx,
+        &step.id,
+        &format!("attempt-{attempt}-stdout.log"),
+        &out.stdout,
+    );
+    let stderr_log = write_log(
+        ctx,
+        &step.id,
+        &format!("attempt-{attempt}-stderr.log"),
+        &out.stderr,
+    );
+    let status_value = if cancelled {
+        status::CANCELLED
+    } else if timed_out {
+        status::TIMEOUT
+    } else if ok {
+        status::OK
+    } else {
+        status::FAILED
+    };
     let message = if cancelled {
         format!("cancelled during attempt {attempt}/{attempts}")
     } else if timed_out {
@@ -1029,7 +1404,8 @@ fn process_output(
     } else {
         format!("exit={code} attempt={attempt}/{attempts}")
     };
-    let mut result = StepResult::new(&step.id, &step.step_type, ok, status_value, message).with_output(combined);
+    let mut result =
+        StepResult::new(&step.id, &step.step_type, ok, status_value, message).with_output(combined);
     result.set_data("returncode", serde_json::json!(code));
     result.set_data("cwd", serde_json::json!(cwd.display().to_string()));
     result.set_data("command", serde_json::json!(display));
@@ -1059,7 +1435,10 @@ pub(crate) fn scan_forbidden(
     prefix: &str,
 ) -> Vec<String> {
     let list = |key: &str| -> Vec<String> {
-        rules.get(key).and_then(|v| yamlx::as_string_list(v, key).ok()).unwrap_or_default()
+        rules
+            .get(key)
+            .and_then(|v| yamlx::as_string_list(v, key).ok())
+            .unwrap_or_default()
     };
     let mut forbidden_paths = list("forbidden_paths");
     if forbidden_paths.is_empty() {

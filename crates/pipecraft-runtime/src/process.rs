@@ -60,7 +60,9 @@ fn build_command(
         ));
     };
 
-    cmd.current_dir(cwd).stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.current_dir(cwd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     if stdin_payload.is_some() {
         cmd.stdin(Stdio::piped());
     }
@@ -75,9 +77,15 @@ fn build_command(
         .env("PIPECRAFT_PIPELINE", &pipeline.name)
         .env("PIPECRAFT_RUN_ID", &ctx.run_id)
         .env("PIPECRAFT_LABELS", ctx.labels.join(" "))
-        .env("PIPECRAFT_DRY_RUN", if ctx.dry_run { "true" } else { "false" })
+        .env(
+            "PIPECRAFT_DRY_RUN",
+            if ctx.dry_run { "true" } else { "false" },
+        )
         .env("PIPECRAFT_RUN_DIR", ctx.run_dir.display().to_string())
-        .env("PIPECRAFT_ARTIFACTS_DIR", ctx.artifacts_dir.display().to_string())
+        .env(
+            "PIPECRAFT_ARTIFACTS_DIR",
+            ctx.artifacts_dir.display().to_string(),
+        )
         .env("PIPECRAFT_LOGS_DIR", ctx.logs_dir.display().to_string());
 
     #[cfg(unix)]
@@ -150,7 +158,13 @@ async fn terminate_process_group(child: &mut Child) -> std::io::Result<ExitStatu
 fn safe_name(value: &str) -> String {
     value
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -377,7 +391,8 @@ fn process_output(
     } else {
         format!("exit={code} attempt={attempt}/{attempts}")
     };
-    let mut result = StepResult::new(&step.id, &step.step_type, ok, status_value, message).with_output(combined);
+    let mut result =
+        StepResult::new(&step.id, &step.step_type, ok, status_value, message).with_output(combined);
     result.set_data("returncode", serde_json::json!(code));
     result.set_data("cwd", serde_json::json!(cwd.display().to_string()));
     result.set_data("command", serde_json::json!(display));
@@ -391,7 +406,10 @@ fn process_output(
     result.set_data("stderr", serde_json::json!(stderr));
     result.set_data("stdout_truncated", serde_json::json!(out.stdout_truncated));
     result.set_data("stderr_truncated", serde_json::json!(out.stderr_truncated));
-    result.set_data("capture_limit_bytes", serde_json::json!(REPORT_CAPTURE_BYTES));
+    result.set_data(
+        "capture_limit_bytes",
+        serde_json::json!(REPORT_CAPTURE_BYTES),
+    );
     if let Some(path) = out.stdout_log {
         result.set_data("stdout_log", serde_json::json!(path));
     }
@@ -467,7 +485,8 @@ pub async fn run_process_with_retries_async(
         }
 
         let inactivity_timeout = step.with.get("inactivity_timeout").and_then(|v| v.as_u64());
-        let waited = wait_with_timeout(child, timeout, inactivity_timeout, ctx, step, attempt).await;
+        let waited =
+            wait_with_timeout(child, timeout, inactivity_timeout, ctx, step, attempt).await;
         let duration_ms = started.elapsed().as_millis() as u64;
         let result = match waited {
             Ok(output) => process_output(

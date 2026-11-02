@@ -25,7 +25,10 @@ impl WorkspaceRuntimeLock {
             use std::os::fd::AsRawFd;
             let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
             if rc != 0 {
-                return Err(format!("another PipeCraft runtime service owns {}", runtime_dir.display()));
+                return Err(format!(
+                    "another PipeCraft runtime service owns {}",
+                    runtime_dir.display()
+                ));
             }
         }
 
@@ -36,14 +39,19 @@ impl WorkspaceRuntimeLock {
         }
 
         file.set_len(0).map_err(|error| error.to_string())?;
-        file.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|error| error.to_string())?;
         let metadata = serde_json::json!({
             "protocol": "pipecraft.service-lock/v1",
             "pid": std::process::id(),
             "started_at": chrono::Utc::now().to_rfc3339(),
         });
-        file.write_all(serde_json::to_string_pretty(&metadata).unwrap_or_else(|_| "{}".into()).as_bytes())
-            .map_err(|error| error.to_string())?;
+        file.write_all(
+            serde_json::to_string_pretty(&metadata)
+                .unwrap_or_else(|_| "{}".into())
+                .as_bytes(),
+        )
+        .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
         Ok(Self { _file: file })
     }

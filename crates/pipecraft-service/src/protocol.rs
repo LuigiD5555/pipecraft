@@ -8,7 +8,9 @@ pub const PROTOCOL_VERSION: &str = "pipecraft.ipc/v1";
 pub enum IpcRequest {
     Ping,
     /// Advisory, read-only scheduling: no execution or claims.
-    PlanAdmission { snapshot: pipecraft_runtime::admission::AdmissionSnapshot },
+    PlanAdmission {
+        snapshot: pipecraft_runtime::admission::AdmissionSnapshot,
+    },
     Submit {
         pipeline: String,
         #[serde(default)]
@@ -39,7 +41,9 @@ pub enum IpcRequest {
         #[serde(default)]
         only: Vec<String>,
     },
-    ValidateSpec { spec: Value },
+    ValidateSpec {
+        spec: Value,
+    },
     PlanSpec {
         spec: Value,
         #[serde(default)]
@@ -47,10 +51,16 @@ pub enum IpcRequest {
         #[serde(default)]
         only: Vec<String>,
     },
-    Status { run_id: String },
+    Status {
+        run_id: String,
+    },
     Jobs,
-    Cancel { run_id: String },
-    Resume { run_id: String },
+    Cancel {
+        run_id: String,
+    },
+    Resume {
+        run_id: String,
+    },
     Events {
         run_id: String,
         #[serde(default)]
@@ -58,11 +68,17 @@ pub enum IpcRequest {
         #[serde(default = "default_event_limit")]
         limit: usize,
     },
-    Report { run_id: String },
+    Report {
+        run_id: String,
+    },
 }
 
-fn default_workers() -> usize { 1 }
-fn default_event_limit() -> usize { 200 }
+fn default_workers() -> usize {
+    1
+}
+fn default_event_limit() -> usize {
+    200
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpcResponse {
@@ -82,7 +98,12 @@ pub struct IpcError {
 
 impl IpcResponse {
     pub fn ok(data: Value) -> Self {
-        Self { protocol: PROTOCOL_VERSION.into(), ok: true, data: Some(data), error: None }
+        Self {
+            protocol: PROTOCOL_VERSION.into(),
+            ok: true,
+            data: Some(data),
+            error: None,
+        }
     }
 
     pub fn error(code: impl Into<String>, message: impl Into<String>) -> Self {
@@ -90,7 +111,10 @@ impl IpcResponse {
             protocol: PROTOCOL_VERSION.into(),
             ok: false,
             data: None,
-            error: Some(IpcError { code: code.into(), message: message.into() }),
+            error: Some(IpcError {
+                code: code.into(),
+                message: message.into(),
+            }),
         }
     }
 }
@@ -104,9 +128,14 @@ mod tests {
         let request: IpcRequest = serde_json::from_value(serde_json::json!({
             "op": "submit",
             "pipeline": "demo"
-        })).unwrap();
+        }))
+        .unwrap();
         match request {
-            IpcRequest::Submit { pipeline, max_workers, .. } => {
+            IpcRequest::Submit {
+                pipeline,
+                max_workers,
+                ..
+            } => {
                 assert_eq!(pipeline, "demo");
                 assert_eq!(max_workers, 1);
             }
@@ -115,7 +144,8 @@ mod tests {
         let snapshot_request: IpcRequest = serde_json::from_value(serde_json::json!({
             "op": "plan_admission",
             "snapshot": {"revision": 1, "now_ms": 100, "capacity": 2, "candidates": []}
-        })).unwrap();
+        }))
+        .unwrap();
         assert!(matches!(snapshot_request, IpcRequest::PlanAdmission { .. }));
         let response = IpcResponse::ok(serde_json::json!({"pong": true}));
         assert_eq!(response.protocol, PROTOCOL_VERSION);

@@ -109,7 +109,10 @@ fn read_routes_yaml(path: &Path) -> ConfigResult<Value> {
 }
 
 /// Load label routes from `.pipelines/routes.yaml`.
-pub fn load_routes(root: &Path, workspace: Option<&WorkspaceConfig>) -> ConfigResult<Vec<RouteDefinition>> {
+pub fn load_routes(
+    root: &Path,
+    workspace: Option<&WorkspaceConfig>,
+) -> ConfigResult<Vec<RouteDefinition>> {
     let owned;
     let ws = match workspace {
         Some(w) => w,
@@ -140,14 +143,20 @@ pub fn load_routes(root: &Path, workspace: Option<&WorkspaceConfig>) -> ConfigRe
         let labels = get(&when, "labels").cloned().unwrap_or(Value::Null);
 
         // `when.labels.{include,any|any_of,exclude}` with top-level fallbacks.
-        let include = pick_list(&labels, "include").or_else(|| pick_list(item, "include")).unwrap_or_default();
+        let include = pick_list(&labels, "include")
+            .or_else(|| pick_list(item, "include"))
+            .unwrap_or_default();
         let any_of = pick_list(&labels, "any")
             .or_else(|| pick_list(&labels, "any_of"))
             .or_else(|| pick_list(item, "any_of"))
             .unwrap_or_default();
-        let exclude = pick_list(&labels, "exclude").or_else(|| pick_list(item, "exclude")).unwrap_or_default();
+        let exclude = pick_list(&labels, "exclude")
+            .or_else(|| pick_list(item, "exclude"))
+            .unwrap_or_default();
 
-        let pipeline = get(item, "pipeline").and_then(yamlx::as_string).unwrap_or_default();
+        let pipeline = get(item, "pipeline")
+            .and_then(yamlx::as_string)
+            .unwrap_or_default();
         if pipeline.trim().is_empty() {
             return Err(ConfigError::new(
                 format!("Route #{index} in {} is missing `pipeline`", path.display()),
@@ -157,12 +166,16 @@ pub fn load_routes(root: &Path, workspace: Option<&WorkspaceConfig>) -> ConfigRe
         }
 
         routes.push(RouteDefinition {
-            id: get(item, "id").and_then(yamlx::as_string).unwrap_or_else(|| format!("route_{index}")),
+            id: get(item, "id")
+                .and_then(yamlx::as_string)
+                .unwrap_or_else(|| format!("route_{index}")),
             pipeline,
             include: strip_hashes(include),
             any_of: strip_hashes(any_of),
             exclude: strip_hashes(exclude),
-            description: get(item, "description").and_then(yamlx::as_string).unwrap_or_default(),
+            description: get(item, "description")
+                .and_then(yamlx::as_string)
+                .unwrap_or_default(),
             set_context: get(item, "set_context")
                 .map(|v| yamlx::as_mapping(v, "set_context"))
                 .transpose()?
@@ -177,7 +190,10 @@ fn pick_list(value: &Value, key: &str) -> Option<Vec<String>> {
 }
 
 fn strip_hashes(items: Vec<String>) -> Vec<String> {
-    items.into_iter().map(|s| s.trim_start_matches('#').to_ascii_lowercase()).collect()
+    items
+        .into_iter()
+        .map(|s| s.trim_start_matches('#').to_ascii_lowercase())
+        .collect()
 }
 
 /// Every route satisfied by a label set, evaluated in YAML order.
@@ -243,8 +259,10 @@ pub fn select_route(
     }
 
     if matches.len() > 1 {
-        let summary: Vec<String> =
-            matches.iter().map(|m| format!("{}->{}", m.route.id, m.pipeline)).collect();
+        let summary: Vec<String> = matches
+            .iter()
+            .map(|m| format!("{}->{}", m.route.id, m.pipeline))
+            .collect();
         warnings.push(format!(
             "Multiple routes matched; using first match by routes.yaml order: {}",
             summary.join(", ")

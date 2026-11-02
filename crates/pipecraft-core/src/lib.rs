@@ -27,7 +27,10 @@ mod tests {
 
     #[test]
     fn extract_labels_dedupes_and_strips_hash() {
-        assert_eq!(extract_labels("feat: x #demo #fix #demo"), vec!["demo", "fix"]);
+        assert_eq!(
+            extract_labels("feat: x #demo #fix #demo"),
+            vec!["demo", "fix"]
+        );
     }
 
     #[test]
@@ -44,7 +47,10 @@ mod tests {
     #[test]
     fn schema_version_accepts_legacy_and_canonical() {
         use serde_yaml::Value;
-        assert_eq!(SchemaVersion::parse(&Value::from(1)), Some(SchemaVersion::V1));
+        assert_eq!(
+            SchemaVersion::parse(&Value::from(1)),
+            Some(SchemaVersion::V1)
+        );
         assert_eq!(
             SchemaVersion::parse(&Value::from("pipecraft/v1")),
             Some(SchemaVersion::V1)

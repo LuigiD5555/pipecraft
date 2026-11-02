@@ -15,8 +15,8 @@ use tokio::task::JoinSet;
 use pipecraft_core::model::{PipelineDefinition, PipelineStep};
 use pipecraft_report::{status, StepResult};
 
+use crate::admission::{ranked_ids, AdmissionPolicy, AdmissionSettings, WorkCandidate};
 use crate::context::ExecutionContext;
-use crate::admission::{AdmissionPolicy, AdmissionSettings, WorkCandidate, ranked_ids};
 use crate::coordinator::RuntimeCoordinator;
 use crate::events::emit_event;
 use crate::executor::error_result;
@@ -212,7 +212,11 @@ async fn load_or_initialize_state(
     ctx: &ExecutionContext,
     fingerprint: &str,
 ) -> Result<RunState, StepResult> {
-    let mut state = if ctx.resume && tokio::fs::try_exists(&ctx.state_path).await.unwrap_or(false) {
+    let mut state = if ctx.resume
+        && tokio::fs::try_exists(&ctx.state_path)
+            .await
+            .unwrap_or(false)
+    {
         match RunState::load_async(&ctx.state_path).await {
             Ok(mut prior)
                 if prior.plan_fingerprint == fingerprint
@@ -230,36 +234,32 @@ async fn load_or_initialize_state(
                 prior
             }
             Ok(prior) => {
-                return Err(
-                    StepResult::new(
-                        "__resume__",
-                        "resume",
-                        false,
-                        status::FAILED,
-                        "resume state does not match the current plan or invocation",
-                    )
-                    .with_data(serde_json::json!({
-                        "error_code": "RESUME_STATE_MISMATCH",
-                        "saved_fingerprint": prior.plan_fingerprint,
-                        "current_fingerprint": fingerprint,
-                        "saved_selected": prior.selected,
-                        "current_selected": selected_order,
-                        "saved_dry_run": prior.dry_run,
-                        "current_dry_run": ctx.dry_run,
-                    })),
-                );
+                return Err(StepResult::new(
+                    "__resume__",
+                    "resume",
+                    false,
+                    status::FAILED,
+                    "resume state does not match the current plan or invocation",
+                )
+                .with_data(serde_json::json!({
+                    "error_code": "RESUME_STATE_MISMATCH",
+                    "saved_fingerprint": prior.plan_fingerprint,
+                    "current_fingerprint": fingerprint,
+                    "saved_selected": prior.selected,
+                    "current_selected": selected_order,
+                    "saved_dry_run": prior.dry_run,
+                    "current_dry_run": ctx.dry_run,
+                })));
             }
             Err(error) => {
-                return Err(
-                    StepResult::new(
-                        "__resume__",
-                        "resume",
-                        false,
-                        status::FAILED,
-                        format!("could not read resume state: {error}"),
-                    )
-                    .with_data(serde_json::json!({"error_code":"RESUME_STATE_READ_ERROR"})),
-                );
+                return Err(StepResult::new(
+                    "__resume__",
+                    "resume",
+                    false,
+                    status::FAILED,
+                    format!("could not read resume state: {error}"),
+                )
+                .with_data(serde_json::json!({"error_code":"RESUME_STATE_READ_ERROR"})));
             }
         }
     } else {
@@ -353,7 +353,12 @@ pub async fn schedule(
             hard_failure = true;
             stop_requested = true;
             if !cancel_event_emitted {
-                let _ = emit_event(ctx, "pipeline_cancel_requested", None, serde_json::json!({}));
+                let _ = emit_event(
+                    ctx,
+                    "pipeline_cancel_requested",
+                    None,
+                    serde_json::json!({}),
+                );
                 cancel_event_emitted = true;
             }
             for id in selected_order {
@@ -462,17 +467,36 @@ pub async fn schedule(
 
         // DAG readiness is still determined above; the admission ranking helper
         // is shared with external providers. Legacy preserves topological order.
-        let ready_candidates = order.iter().filter(|id| {
-            selected.contains(*id) && state.statuses.get(*id).map(String::as_str) == Some(status::READY)
-        }).map(|id| WorkCandidate {
-            id: id.clone(), group: String::new(), priority: 0, ready_at_ms: 0,
-            not_before_ms: None, weight: 1, scopes: vec![],
-            exclusive_resources: vec![], shared_resources: vec![],
-            hard_block: None, dependencies_met: true, group_limit: 1,
-        }).collect::<Vec<_>>();
-        let legacy_ranking = AdmissionSettings { policy: AdmissionPolicy::Legacy, ..AdmissionSettings::default() };
+        let ready_candidates = order
+            .iter()
+            .filter(|id| {
+                selected.contains(*id)
+                    && state.statuses.get(*id).map(String::as_str) == Some(status::READY)
+            })
+            .map(|id| WorkCandidate {
+                id: id.clone(),
+                group: String::new(),
+                priority: 0,
+                ready_at_ms: 0,
+                not_before_ms: None,
+                weight: 1,
+                scopes: vec![],
+                exclusive_resources: vec![],
+                shared_resources: vec![],
+                hard_block: None,
+                dependencies_met: true,
+                group_limit: 1,
+            })
+            .collect::<Vec<_>>();
+        let legacy_ranking = AdmissionSettings {
+            policy: AdmissionPolicy::Legacy,
+            ..AdmissionSettings::default()
+        };
         let ready_indexes = ranked_ids(&ready_candidates, 0, &legacy_ranking, &BTreeMap::new());
-        let dispatch_order = ready_indexes.iter().map(|&i| &ready_candidates[i].id).collect::<Vec<_>>();
+        let dispatch_order = ready_indexes
+            .iter()
+            .map(|&i| &ready_candidates[i].id)
+            .collect::<Vec<_>>();
         let barrier_running = running.values().any(|barrier| *barrier);
         for id in dispatch_order {
             if persistence_failed || ctx.cancellation.is_cancelled() {
@@ -527,7 +551,10 @@ pub async fn schedule(
                     })
                     .flat_map(|candidate| candidate.provides.iter().cloned())
                     .collect();
-                if missing.iter().any(|capability| possible.contains(capability)) {
+                if missing
+                    .iter()
+                    .any(|capability| possible.contains(capability))
+                {
                     continue;
                 }
                 let mut result = synthetic(
@@ -770,9 +797,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use pipecraft_core::load_pipeline;
     use crate::executor::{ExecutorRegistry, StepExecutor};
     use crate::PipelineEngine;
+    use pipecraft_core::load_pipeline;
 
     struct ProbeExecutor {
         active: Arc<AtomicUsize>,
@@ -794,11 +821,26 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
             self.max_active.fetch_max(active, Ordering::SeqCst);
-            let delay = step.with.get("sleep_ms").and_then(|value| value.as_u64()).unwrap_or(20);
+            let delay = step
+                .with
+                .get("sleep_ms")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(20);
             std::thread::sleep(Duration::from_millis(delay));
             self.active.fetch_sub(1, Ordering::SeqCst);
-            if step.with.get("fail").and_then(|value| value.as_bool()).unwrap_or(false) {
-                StepResult::new(&step.id, &step.step_type, false, status::FAILED, "probe failure")
+            if step
+                .with
+                .get("fail")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+            {
+                StepResult::new(
+                    &step.id,
+                    &step.step_type,
+                    false,
+                    status::FAILED,
+                    "probe failure",
+                )
             } else {
                 StepResult::new(&step.id, &step.step_type, true, status::OK, "probe ok")
             }
@@ -880,7 +922,11 @@ steps:
         assert!(!run.success);
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(
-            run.results.iter().find(|result| result.step_id == "later").unwrap().status,
+            run.results
+                .iter()
+                .find(|result| result.step_id == "later")
+                .unwrap()
+                .status,
             status::CANCELLED
         );
     }

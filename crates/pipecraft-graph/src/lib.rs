@@ -25,7 +25,11 @@ impl std::fmt::Display for GraphError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GraphError::Cycle { remaining } => {
-                write!(f, "dependency cycle detected among steps: {}", remaining.join(", "))
+                write!(
+                    f,
+                    "dependency cycle detected among steps: {}",
+                    remaining.join(", ")
+                )
             }
         }
     }
@@ -117,7 +121,10 @@ mod tests {
     use super::*;
 
     fn node(id: &str, needs: &[&str]) -> Node {
-        Node { id: id.into(), needs: needs.iter().map(|s| s.to_string()).collect() }
+        Node {
+            id: id.into(),
+            needs: needs.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[test]
@@ -128,14 +135,26 @@ mod tests {
 
     #[test]
     fn orders_by_dependencies() {
-        let nodes = vec![node("package", &["test"]), node("test", &["lint"]), node("lint", &[])];
-        assert_eq!(topological_order(&nodes).unwrap(), vec!["lint", "test", "package"]);
+        let nodes = vec![
+            node("package", &["test"]),
+            node("test", &["lint"]),
+            node("lint", &[]),
+        ];
+        assert_eq!(
+            topological_order(&nodes).unwrap(),
+            vec!["lint", "test", "package"]
+        );
     }
 
     #[test]
     fn detects_cycle() {
         let nodes = vec![node("a", &["b"]), node("b", &["a"])];
         let err = topological_order(&nodes).unwrap_err();
-        assert_eq!(err, GraphError::Cycle { remaining: vec!["a".into(), "b".into()] });
+        assert_eq!(
+            err,
+            GraphError::Cycle {
+                remaining: vec!["a".into(), "b".into()]
+            }
+        );
     }
 }
