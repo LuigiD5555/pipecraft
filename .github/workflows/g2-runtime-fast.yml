@@ -7,7 +7,10 @@ on:
       - 'crates/pipecraft-runtime/src/admission.rs'
       - 'crates/pipecraft-runtime/src/resources.rs'
       - 'crates/pipecraft-runtime/src/coordinator.rs'
+      - 'crates/pipecraft-runtime/src/manager.rs'
+      - 'crates/pipecraft-runtime/src/capacity.rs'
       - 'crates/pipecraft-runtime/src/scheduler.rs'
+      - 'crates/pipecraft-runtime/tests/admission_gate.rs'
       - 'crates/pipecraft-service/src/store.rs'
       - 'crates/pipecraft-service/src/server.rs'
       - '.github/workflows/g2-runtime-fast.yml'
@@ -40,7 +43,7 @@ jobs:
             pipecraft-rust-${{ runner.os }}-
       - name: Format check
         run: cargo fmt --all -- --check
-      - name: Runtime admission and resource tests
-        run: timeout 240s cargo test --locked -p pipecraft-runtime --lib -- --test-threads=1 --nocapture
+      - name: Runtime admission, resource and public gate tests
+        run: timeout 240s cargo test --locked -p pipecraft-runtime --all-targets -- --test-threads=1 --nocapture
       - name: Service recovery hook tests
         run: timeout 240s cargo test --locked -p pipecraft-service --lib -- --test-threads=1 --nocapture
