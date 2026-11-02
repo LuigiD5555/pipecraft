@@ -24,9 +24,24 @@ jobs:
       - name: Reconstruct and validate recovered source
         run: |
           set -euo pipefail
-          cat bootstrap/source-bundle/bundle.b64.* | tr -d '\n\r' | base64 -d > /tmp/pipecraft-source.tar.gz
+          python3 - <<'PY'
+          import base64
+          import pathlib
+          import zlib
+
+          parts = sorted(pathlib.Path("bootstrap/source-bundle").glob("bundle.b64.*"))
+          encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
+          encoded += "=" * (-len(encoded) % 4)
+          compressed = base64.b64decode(encoded, validate=False)
+          inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+          recovered = inflater.decompress(compressed)
+          if len(recovered) < 1024:
+              raise SystemExit("recovered gzip payload is unexpectedly small")
+          pathlib.Path("/tmp/pipecraft-source.tar").write_bytes(recovered)
+          print(f"recovered_tar_bytes={len(recovered)} gzip_eof={inflater.eof}")
+          PY
           mkdir /tmp/pipecraft-recovered
-          tar -xzf /tmp/pipecraft-source.tar.gz -C /tmp/pipecraft-recovered
+          tar -xf /tmp/pipecraft-source.tar -C /tmp/pipecraft-recovered
           root=/tmp/pipecraft-recovered/pipecraft-1.7.0-alpha.1
           test -f "$root/Cargo.toml"
           test -d "$root/crates"
