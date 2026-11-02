@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn aging_starts_at_eligible_since_not_ready_at() {
         let mut older_eligible = work("older", "group-a", 1);
-        older_eligible.priority = 110;
+        older_eligible.priority = 105;
         older_eligible.ready_at_ms = 9_000;
         older_eligible.eligible_since_ms = 1_000;
 

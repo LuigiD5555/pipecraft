@@ -445,7 +445,7 @@ mod tests {
         assert!(resources
             .try_acquire_demands(
                 "writer",
-                &[demand("profile:19", 1, 1, ResourceShareMode::Exclusive, 1)],
+                &[demand("profile:19", 1, 1, ResourceShareMode::Exclusive, 8)],
             )
             .unwrap()
             .is_none());
@@ -461,7 +461,7 @@ mod tests {
         let writer = resources
             .try_acquire_demands(
                 "writer",
-                &[demand("profile:19", 1, 1, ResourceShareMode::Exclusive, 1)],
+                &[demand("profile:19", 1, 1, ResourceShareMode::Exclusive, 8)],
             )
             .unwrap()
             .unwrap();
