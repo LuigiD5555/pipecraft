@@ -1,0 +1,41 @@
+name: Prepare PipeCraft 1.7 source
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/source-prep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply rustfmt and generate lockfile
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo generate-lockfile
+          test -s Cargo.lock
+      - name: Commit mechanical preparation
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/source-prep.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'style: apply rustfmt and lock PipeCraft 1.7 dependencies'
+          git push origin HEAD:main
