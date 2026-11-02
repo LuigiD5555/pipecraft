@@ -27,7 +27,11 @@ fn copy_tree(source: &Path, destination: &Path) {
     for entry in fs::read_dir(source).expect("example directory should be readable") {
         let entry = entry.expect("example entry should be readable");
         let target = destination.join(entry.file_name());
-        if entry.file_type().expect("example entry type should be readable").is_dir() {
+        if entry
+            .file_type()
+            .expect("example entry type should be readable")
+            .is_dir()
+        {
             copy_tree(&entry.path(), &target);
         } else {
             fs::copy(entry.path(), target).expect("example file should be copied");
