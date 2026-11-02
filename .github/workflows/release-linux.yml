@@ -42,11 +42,11 @@ jobs:
           components: rustfmt, clippy
       - name: Verify source structure
         run: python3 scripts/check_release_sources.py
-      - name: Generate lockfile
+      - name: Verify committed lockfile
         run: |
           set -euo pipefail
-          cargo generate-lockfile
           test -s Cargo.lock
+          cargo metadata --locked --format-version 1 >/dev/null
       - name: Rust format
         run: cargo fmt --all -- --check
       - name: Rust tests
@@ -67,18 +67,6 @@ jobs:
           chmod 0755 pipecraft-linux-x86_64
           sha256sum pipecraft-linux-x86_64 > pipecraft-linux-x86_64.sha256
           ./pipecraft-linux-x86_64 --version
-      - name: Persist Cargo.lock after verified build
-        if: github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- Cargo.lock && git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Cargo.lock
-          git commit -m 'build: lock PipeCraft 1.7 dependencies'
-          git push origin HEAD:main
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
         with:
