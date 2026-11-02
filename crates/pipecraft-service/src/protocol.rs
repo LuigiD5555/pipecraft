@@ -206,14 +206,48 @@ pub enum ExternalWorkMessage {
 impl ExternalWorkMessage {
     fn common(&self) -> (&str, &str, &str, &str) {
         match self {
-            Self::ProviderSnapshot { protocol, request_id, installation_id, provider_id, .. }
-            | Self::ProviderDelta { protocol, request_id, installation_id, provider_id, .. }
-            | Self::WorkOffer { protocol, request_id, installation_id, provider_id, .. }
-            | Self::OfferConfirmation { protocol, request_id, installation_id, provider_id, .. }
-            | Self::Reconcile { protocol, request_id, installation_id, provider_id, .. }
-            | Self::VerifiedOutcome { protocol, request_id, installation_id, provider_id, .. } => {
-                (protocol, request_id, installation_id, provider_id)
+            Self::ProviderSnapshot {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
             }
+            | Self::ProviderDelta {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
+            }
+            | Self::WorkOffer {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
+            }
+            | Self::OfferConfirmation {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
+            }
+            | Self::Reconcile {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
+            }
+            | Self::VerifiedOutcome {
+                protocol,
+                request_id,
+                installation_id,
+                provider_id,
+                ..
+            } => (protocol, request_id, installation_id, provider_id),
         }
     }
 }
@@ -221,11 +255,16 @@ impl ExternalWorkMessage {
 fn valid_token(value: &str, max: usize) -> bool {
     !value.is_empty()
         && value.len() <= max
-        && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"._:/-".contains(&byte))
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"._:/-".contains(&byte))
 }
 
 fn valid_provider(value: &str) -> bool {
-    valid_token(value, 128) && value.contains('/') && !value.starts_with('/') && !value.ends_with('/')
+    valid_token(value, 128)
+        && value.contains('/')
+        && !value.starts_with('/')
+        && !value.ends_with('/')
 }
 
 fn validate_resource(resource: &ExternalResourceDemand) -> Result<(), String> {
@@ -272,11 +311,18 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
     if protocol != EXTERNAL_WORK_PROTOCOL_VERSION {
         return Err("unsupported external-work protocol".into());
     }
-    if !valid_token(request_id, 128) || !valid_token(installation_id, 128) || !valid_provider(provider_id) {
+    if !valid_token(request_id, 128)
+        || !valid_token(installation_id, 128)
+        || !valid_provider(provider_id)
+    {
         return Err("invalid request, installation or provider identity".into());
     }
     match message {
-        ExternalWorkMessage::ProviderSnapshot { work, active_claims, .. } => {
+        ExternalWorkMessage::ProviderSnapshot {
+            work,
+            active_claims,
+            ..
+        } => {
             if work.len() > 10_000 || active_claims.len() > 10_000 {
                 return Err("external-work snapshot exceeds bounded cardinality".into());
             }
@@ -300,7 +346,13 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
                 }
             }
         }
-        ExternalWorkMessage::ProviderDelta { base_revision, snapshot_revision, upsert, removed_work_ids, .. } => {
+        ExternalWorkMessage::ProviderDelta {
+            base_revision,
+            snapshot_revision,
+            upsert,
+            removed_work_ids,
+            ..
+        } => {
             if snapshot_revision <= base_revision {
                 return Err("provider delta revision must advance".into());
             }
@@ -320,7 +372,15 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
                 }
             }
         }
-        ExternalWorkMessage::WorkOffer { offer_id, work_id, leadership_epoch, offer_deadline_ms, required_capabilities, decision_trace_id, .. } => {
+        ExternalWorkMessage::WorkOffer {
+            offer_id,
+            work_id,
+            leadership_epoch,
+            offer_deadline_ms,
+            required_capabilities,
+            decision_trace_id,
+            ..
+        } => {
             if !valid_token(offer_id, 128)
                 || !valid_token(work_id, 192)
                 || !work_id.contains(':')
@@ -337,33 +397,70 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
                 }
             }
         }
-        ExternalWorkMessage::OfferConfirmation { offer_id, work_id, result, claim_epoch, claim_id, lease_until_ms, assigned_worker_capability, operation_keys, .. } => {
+        ExternalWorkMessage::OfferConfirmation {
+            offer_id,
+            work_id,
+            result,
+            claim_epoch,
+            claim_id,
+            lease_until_ms,
+            assigned_worker_capability,
+            operation_keys,
+            ..
+        } => {
             if !valid_token(offer_id, 128) || !valid_token(work_id, 192) || !work_id.contains(':') {
                 return Err("invalid offer confirmation identity".into());
             }
             if matches!(result, OfferConfirmationResult::Confirmed)
                 && (claim_epoch.unwrap_or(0) == 0
-                    || claim_id.as_deref().map(|value| !valid_token(value, 128)).unwrap_or(true)
+                    || claim_id
+                        .as_deref()
+                        .map(|value| !valid_token(value, 128))
+                        .unwrap_or(true)
                     || lease_until_ms.unwrap_or(0) == 0
-                    || assigned_worker_capability.as_deref().map(|value| !valid_token(value, 128)).unwrap_or(true)
+                    || assigned_worker_capability
+                        .as_deref()
+                        .map(|value| !valid_token(value, 128))
+                        .unwrap_or(true)
                     || operation_keys.is_empty()
                     || operation_keys.iter().any(|value| !valid_token(value, 256)))
             {
                 return Err("confirmed offer is missing claim fields".into());
             }
         }
-        ExternalWorkMessage::Reconcile { work_id, attempt_id, claim_epoch, receipt_id, .. } => {
+        ExternalWorkMessage::Reconcile {
+            work_id,
+            attempt_id,
+            claim_epoch,
+            receipt_id,
+            ..
+        } => {
             if !valid_token(work_id, 192) || !work_id.contains(':') {
                 return Err("invalid reconcile work_id".into());
             }
-            if attempt_id.as_deref().map(|value| !valid_token(value, 128)).unwrap_or(false)
+            if attempt_id
+                .as_deref()
+                .map(|value| !valid_token(value, 128))
+                .unwrap_or(false)
                 || claim_epoch.map(|value| value == 0).unwrap_or(false)
-                || receipt_id.as_deref().map(|value| !valid_token(value, 128)).unwrap_or(false)
+                || receipt_id
+                    .as_deref()
+                    .map(|value| !valid_token(value, 128))
+                    .unwrap_or(false)
             {
                 return Err("invalid reconcile identity".into());
             }
         }
-        ExternalWorkMessage::VerifiedOutcome { work_id, attempt_id, claim_epoch, status, receipt_id, operation_key, result_digest, .. } => {
+        ExternalWorkMessage::VerifiedOutcome {
+            work_id,
+            attempt_id,
+            claim_epoch,
+            status,
+            receipt_id,
+            operation_key,
+            result_digest,
+            ..
+        } => {
             if !valid_token(work_id, 192)
                 || !work_id.contains(':')
                 || !valid_token(attempt_id, 128)
@@ -373,7 +470,10 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
                 return Err("invalid verified outcome identity".into());
             }
             if matches!(status, ExternalOutcomeStatus::SucceededVerified)
-                && receipt_id.as_deref().map(|value| !valid_token(value, 128)).unwrap_or(true)
+                && receipt_id
+                    .as_deref()
+                    .map(|value| !valid_token(value, 128))
+                    .unwrap_or(true)
             {
                 return Err("SUCCEEDED_VERIFIED requires a durable receipt_id".into());
             }
@@ -389,7 +489,6 @@ pub fn validate_external_work_message(message: &ExternalWorkMessage) -> Result<(
     }
     Ok(())
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
