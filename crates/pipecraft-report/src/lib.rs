@@ -59,8 +59,8 @@ pub struct StepResult {
     pub success: bool,
     pub status: String,
     pub message: String,
-    pub output: String,
-    pub data: serde_json::Value,
+    pub output: Box<str>,
+    pub data: Box<serde_json::Value>,
 }
 
 impl StepResult {
@@ -77,25 +77,25 @@ impl StepResult {
             success,
             status: status.into(),
             message: message.into(),
-            output: String::new(),
-            data: serde_json::Value::Object(Default::default()),
+            output: String::new().into_boxed_str(),
+            data: Box::new(serde_json::Value::Object(Default::default())),
         }
     }
 
     pub fn with_output(mut self, output: impl Into<String>) -> Self {
-        self.output = output.into();
+        self.output = output.into().into_boxed_str();
         self
     }
 
     pub fn with_data(mut self, data: serde_json::Value) -> Self {
-        self.data = data;
+        self.data = Box::new(data);
         self
     }
 
     /// Insert a key into the (object) `data` map, creating it if needed.
     pub fn set_data(&mut self, key: &str, value: serde_json::Value) {
         if !self.data.is_object() {
-            self.data = serde_json::Value::Object(Default::default());
+            self.data = Box::new(serde_json::Value::Object(Default::default()));
         }
         if let Some(map) = self.data.as_object_mut() {
             map.insert(key.to_string(), value);

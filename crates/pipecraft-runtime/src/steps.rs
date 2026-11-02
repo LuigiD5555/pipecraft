@@ -487,7 +487,7 @@ async fn run_plugin_async(
 
 fn parse_plugin_result(step: &PipelineStep, result: StepResult) -> StepResult {
     let process_success = result.success;
-    let process_data = result.data.clone();
+    let process_data = (*result.data).clone();
     let stdout_owned = result
         .data
         .get("stdout")
@@ -1342,7 +1342,7 @@ fn terminate_process_group(child: &mut std::process::Child) -> std::io::Result<E
         unsafe {
             libc::kill(-pgid, libc::SIGKILL);
         }
-        return child.wait();
+        child.wait()
     }
     #[cfg(not(unix))]
     {

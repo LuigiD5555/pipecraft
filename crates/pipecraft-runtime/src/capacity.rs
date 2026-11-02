@@ -183,8 +183,10 @@ mod tests {
     }
     #[test]
     fn fixed_capacity_and_invalid_inputs() {
-        let mut profile = CapacityProfile::default();
-        profile.fixed = Some(3);
+        let mut profile = CapacityProfile {
+            fixed: Some(3),
+            ..CapacityProfile::default()
+        };
         assert_eq!(
             calculate(&profile, &CapacityEvidence::default())
                 .unwrap()

@@ -20,18 +20,11 @@ use crate::events::emit_event;
 use crate::executor::{error_result, ExecutorRegistry};
 use crate::scheduler::{plan_fingerprint, schedule, PolicyResolver, StepRunner};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PipelineEngine {
     pub registry: ExecutorRegistry,
 }
 
-impl Default for PipelineEngine {
-    fn default() -> Self {
-        Self {
-            registry: ExecutorRegistry::default_v1(),
-        }
-    }
-}
 
 impl PipelineEngine {
     pub fn new(registry: ExecutorRegistry) -> Self {
@@ -179,7 +172,7 @@ impl PipelineEngine {
                 &run_ctx,
                 "pipeline_validation_failed",
                 None,
-                result.data.clone(),
+                (*result.data).clone(),
             );
             return self.finish_run(
                 run_id,

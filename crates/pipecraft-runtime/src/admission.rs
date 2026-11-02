@@ -26,16 +26,12 @@ fn default_backfill() -> u64 {
     300_000
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdmissionPolicy {
     Legacy,
+    #[default]
     Fair,
-}
-impl Default for AdmissionPolicy {
-    fn default() -> Self {
-        Self::Fair
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

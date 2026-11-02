@@ -376,7 +376,7 @@ pub async fn schedule(
                     );
                     state.statuses.insert(id.clone(), status::CANCELLED.into());
                     state.results.insert(id.clone(), result.clone());
-                    let _ = emit_event(ctx, "node_cancelled", Some(id), result.data.clone());
+                    let _ = emit_event(ctx, "node_cancelled", Some(id), (*result.data).clone());
                     changed = true;
                 }
             }
@@ -410,7 +410,7 @@ pub async fn schedule(
                 state.statuses.insert(id.clone(), status::BLOCKED.into());
                 state.results.insert(id.clone(), result.clone());
                 hard_failure |= step.required;
-                let _ = emit_event(ctx, "node_blocked", Some(id), result.data.clone());
+                let _ = emit_event(ctx, "node_blocked", Some(id), (*result.data).clone());
                 changed = true;
                 continue;
             }
@@ -430,7 +430,7 @@ pub async fn schedule(
                         state.statuses.insert(id.clone(), status::BLOCKED.into());
                         state.results.insert(id.clone(), result.clone());
                         hard_failure |= step.required;
-                        let _ = emit_event(ctx, "node_blocked", Some(id), result.data.clone());
+                        let _ = emit_event(ctx, "node_blocked", Some(id), (*result.data).clone());
                     }
                     changed = true;
                 }
@@ -451,7 +451,7 @@ pub async fn schedule(
                         );
                         state.statuses.insert(id.clone(), status::SKIPPED.into());
                         state.results.insert(id.clone(), result.clone());
-                        let _ = emit_event(ctx, "node_skipped", Some(id), result.data.clone());
+                        let _ = emit_event(ctx, "node_skipped", Some(id), (*result.data).clone());
                     }
                     changed = true;
                 }
@@ -524,7 +524,7 @@ pub async fn schedule(
                 state.statuses.insert(id.clone(), status::BLOCKED.into());
                 state.results.insert(id.clone(), result.clone());
                 hard_failure |= step.required;
-                let _ = emit_event(ctx, "node_blocked", Some(id), result.data.clone());
+                let _ = emit_event(ctx, "node_blocked", Some(id), (*result.data).clone());
                 changed = true;
                 continue;
             }
@@ -568,7 +568,7 @@ pub async fn schedule(
                 state.statuses.insert(id.clone(), status::BLOCKED.into());
                 state.results.insert(id.clone(), result.clone());
                 hard_failure |= step.required;
-                let _ = emit_event(ctx, "node_blocked", Some(id), result.data.clone());
+                let _ = emit_event(ctx, "node_blocked", Some(id), (*result.data).clone());
                 changed = true;
                 continue;
             }
@@ -761,7 +761,7 @@ pub async fn schedule(
                 state.statuses.insert(id.clone(), status::BLOCKED.into());
                 state.results.insert(id.clone(), result.clone());
                 hard_failure |= step.required;
-                let _ = emit_event(ctx, "node_blocked", Some(&id), result.data.clone());
+                let _ = emit_event(ctx, "node_blocked", Some(&id), (*result.data).clone());
             }
             let _ = state.save_async(&ctx.state_path).await;
             break;
