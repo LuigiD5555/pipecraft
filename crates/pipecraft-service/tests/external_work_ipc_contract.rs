@@ -75,11 +75,9 @@ fn confirmed_offer_requires_authoritative_claim_fields() {
         assigned_worker_capability: None,
         operation_keys: vec![],
     };
-    assert!(
-        validate_external_work_message(&message)
-            .unwrap_err()
-            .contains("missing claim fields")
-    );
+    assert!(validate_external_work_message(&message)
+        .unwrap_err()
+        .contains("missing claim fields"));
 }
 
 #[test]

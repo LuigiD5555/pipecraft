@@ -95,7 +95,6 @@ fn external_work_success_is_verified_not_process_exit_success() {
     assert!(!outcomes.iter().any(|v| v == "SUCCEEDED"));
 }
 
-
 #[test]
 fn resource_and_replay_golden_stays_in_sync_with_schema() {
     let schema = schema();
@@ -123,7 +122,9 @@ fn resource_and_replay_golden_stays_in_sync_with_schema() {
     let required = claim_fence["required"].as_array().unwrap();
     assert!(required.iter().any(|value| value == "owner_token"));
     assert_eq!(
-        defs["owner_token"].get("writeOnly").and_then(Value::as_bool),
+        defs["owner_token"]
+            .get("writeOnly")
+            .and_then(Value::as_bool),
         Some(true)
     );
 }
