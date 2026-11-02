@@ -7,6 +7,8 @@ on:
       - 'crates/pipecraft-runtime/src/admission.rs'
       - 'crates/pipecraft-runtime/src/resources.rs'
       - 'crates/pipecraft-runtime/src/coordinator.rs'
+      - 'crates/pipecraft-service/src/store.rs'
+      - 'crates/pipecraft-service/src/server.rs'
       - '.github/workflows/g2-runtime-fast.yml'
   workflow_dispatch:
 
@@ -30,3 +32,5 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Runtime admission and resource tests
         run: cargo test --locked -p pipecraft-runtime --lib
+      - name: Service recovery hook tests
+        run: cargo test --locked -p pipecraft-service --lib
