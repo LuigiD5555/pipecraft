@@ -190,7 +190,6 @@ impl JobStore {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExternalReconcileObservation {
     pub protocol: String,
@@ -292,10 +291,7 @@ impl ExternalRecoveryStore {
         Ok(Some(observation))
     }
 
-    pub async fn observe(
-        &self,
-        observation: &ExternalReconcileObservation,
-    ) -> Result<(), String> {
+    pub async fn observe(&self, observation: &ExternalReconcileObservation) -> Result<(), String> {
         self.prepare().await.map_err(|error| error.to_string())?;
 
         if observation.protocol != "pipecraft.external-reconcile-observation/v1"
@@ -336,7 +332,7 @@ impl ExternalRecoveryStore {
                     Some(new_receipt) if new_receipt == old_receipt => {}
                     Some(_) => {
                         return Err(
-                            "conflicting receipt_id for external reconcile observation".into(),
+                            "conflicting receipt_id for external reconcile observation".into()
                         )
                     }
                     None => {
@@ -346,13 +342,12 @@ impl ExternalRecoveryStore {
                     }
                 }
             }
-            if matches!(
-                previous.replay,
-                ReplayDisposition::ReceiptAlreadyCommitted
-            ) && !matches!(
-                observation.replay,
-                ReplayDisposition::ReceiptAlreadyCommitted
-            ) {
+            if matches!(previous.replay, ReplayDisposition::ReceiptAlreadyCommitted)
+                && !matches!(
+                    observation.replay,
+                    ReplayDisposition::ReceiptAlreadyCommitted
+                )
+            {
                 return Err(
                     "external reconcile observation cannot regress committed receipt state".into(),
                 );
@@ -361,8 +356,7 @@ impl ExternalRecoveryStore {
 
         let path = self.path(&observation.work_id, &observation.operation_key);
         let tmp = path.with_extension(format!("json.tmp-{}", uuid::Uuid::new_v4().simple()));
-        let bytes =
-            serde_json::to_vec_pretty(observation).map_err(|error| error.to_string())?;
+        let bytes = serde_json::to_vec_pretty(observation).map_err(|error| error.to_string())?;
         let mut file = tokio::fs::File::create(&tmp)
             .await
             .map_err(|error| error.to_string())?;
@@ -488,6 +482,4 @@ mod tests {
             .unwrap_err()
             .contains("conflicting receipt_id"));
     }
-
-
 }
