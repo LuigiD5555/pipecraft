@@ -4,7 +4,13 @@ use pipecraft_runtime::admission::{
     decide, ActiveClaim, AdmissionPolicy, AdmissionSettings, AdmissionSnapshot, WorkCandidate,
 };
 
-fn candidate(id: &str, group: &str, priority: i32, eligible_since_ms: u64, weight: u32) -> WorkCandidate {
+fn candidate(
+    id: &str,
+    group: &str,
+    priority: i32,
+    eligible_since_ms: u64,
+    weight: u32,
+) -> WorkCandidate {
     WorkCandidate {
         id: id.into(),
         group: group.into(),
@@ -91,10 +97,7 @@ fn legacy_admission_preserves_input_order_for_dag_compatibility() {
     let snapshot = AdmissionSnapshot {
         revision: 3,
         now_ms: 0,
-        candidates: vec![
-            candidate("z", "z", 100, 0, 1),
-            candidate("a", "a", 1, 0, 1),
-        ],
+        candidates: vec![candidate("z", "z", 100, 0, 1), candidate("a", "a", 1, 0, 1)],
         active: vec![],
         last_dispatch_ms: BTreeMap::new(),
         settings: settings(AdmissionPolicy::Legacy),
