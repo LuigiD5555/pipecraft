@@ -5,7 +5,9 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tempfile::TempDir;
 
 /// Absolute path to an example workspace root.
 fn example(name: &str) -> PathBuf {
@@ -18,6 +20,26 @@ fn example(name: &str) -> PathBuf {
 
 fn pipecraft() -> Command {
     Command::cargo_bin("pipecraft").expect("binary `pipecraft` should build")
+}
+
+fn copy_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).expect("temporary example directory should be created");
+    for entry in fs::read_dir(source).expect("example directory should be readable") {
+        let entry = entry.expect("example entry should be readable");
+        let target = destination.join(entry.file_name());
+        if entry.file_type().expect("example entry type should be readable").is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).expect("example file should be copied");
+        }
+    }
+}
+
+fn isolated_example(name: &str) -> (TempDir, PathBuf) {
+    let temp = tempfile::tempdir().expect("temporary workspace should be created");
+    let root = temp.path().join(name);
+    copy_tree(&example(name), &root);
+    (temp, root)
 }
 
 #[test]
@@ -133,9 +155,10 @@ fn bare_label_routes_to_scraper_pipeline() {
 
 #[test]
 fn run_from_filters_steps() {
+    let (_temp, root) = isolated_example("01-hello-world");
     pipecraft()
         .arg("--root")
-        .arg(example("01-hello-world"))
+        .arg(root)
         .args(["run", "hello-world", "--from", "show_date"])
         .assert()
         .success()
