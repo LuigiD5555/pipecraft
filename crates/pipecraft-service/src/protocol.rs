@@ -513,6 +513,21 @@ pub enum IpcRequest {
         #[serde(default)]
         last_dispatch_ms: std::collections::BTreeMap<String, u64>,
     },
+    /// S02: worker registration is advisory, never an execution claim.
+    RegisterWorker {
+        worker_id: String,
+        capabilities: Vec<String>,
+        now_ms: u64,
+        ttl_ms: u64,
+    },
+    CancelWorker {
+        worker_id: String,
+        now_ms: u64,
+    },
+    AvailableWorkers {
+        capability: String,
+        now_ms: u64,
+    },
     Submit {
         pipeline: String,
         #[serde(default)]

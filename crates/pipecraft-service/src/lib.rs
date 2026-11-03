@@ -7,6 +7,7 @@
 pub mod client;
 mod external_feed;
 mod lock;
+mod worker_registry;
 pub mod protocol;
 pub mod server;
 pub mod store;

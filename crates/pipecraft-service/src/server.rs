@@ -12,6 +12,7 @@ use tokio::sync::{Mutex, RwLock, Semaphore};
 
 use crate::external_feed::ExternalFeedDriver;
 use crate::lock::WorkspaceRuntimeLock;
+use crate::worker_registry::WorkerRegistry;
 use crate::protocol::{
     validate_external_work_message, IpcRequest, IpcResponse, EXTERNAL_WORK_CAPABILITY,
     EXTERNAL_WORK_PROTOCOL_VERSION, PROTOCOL_VERSION,
@@ -62,6 +63,7 @@ pub struct RuntimeService {
     store: JobStore,
     external_recovery: ExternalRecoveryStore,
     external_feed: Arc<ExternalFeedDriver>,
+    worker_registry: Arc<WorkerRegistry>,
     jobs: Arc<RwLock<BTreeMap<String, JobRecord>>>,
     cancellations: Arc<Mutex<BTreeMap<String, CancellationToken>>>,
     config: ServiceConfig,
@@ -91,6 +93,7 @@ impl RuntimeService {
             store,
             external_recovery,
             external_feed: Arc::new(ExternalFeedDriver::default()),
+            worker_registry: Arc::new(WorkerRegistry::default()),
             jobs: Arc::new(RwLock::new(jobs)),
             cancellations: Arc::new(Mutex::new(BTreeMap::new())),
             config,
@@ -298,6 +301,20 @@ impl RuntimeService {
                     .map_err(|message| ("INVALID_EXTERNAL_FEED".into(), message))?;
                 Ok(json!(plan))
             }
+            IpcRequest::RegisterWorker { worker_id, capabilities, now_ms, ttl_ms } => {
+                let worker = self.worker_registry.register(worker_id, capabilities, now_ms, ttl_ms)
+                    .await.map_err(|message| ("INVALID_WORKER".into(), message))?;
+                Ok(json!({"worker": worker, "side_effects": false}))
+            }
+            IpcRequest::CancelWorker { worker_id, now_ms } => {
+                let worker = self.worker_registry.cancel(&worker_id, now_ms)
+                    .await.map_err(|message| ("INVALID_WORKER".into(), message))?;
+                Ok(json!({"worker": worker, "side_effects": false}))
+            }
+            IpcRequest::AvailableWorkers { capability, now_ms } => {
+                let workers = self.worker_registry.available(&capability, now_ms).await;
+                Ok(json!({"workers": workers, "side_effects": false}))
+            }
             IpcRequest::PlanAdmission { snapshot } => {
                 let decision = pipecraft_runtime::admission::decide(&snapshot)
                     .map_err(|message| ("INVALID_ADMISSION_SNAPSHOT".into(), message))?;
@@ -312,7 +329,7 @@ impl RuntimeService {
                 "max_pipelines": self.config.max_pipelines,
                 "max_tasks": self.config.max_tasks,
                 "recovery": if self.config.recovery == RecoveryPolicy::Auto { "auto" } else { "manual" },
-                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", "plan_external_feed", EXTERNAL_WORK_CAPABILITY, "command", "plugin", "resume"],
+                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", "plan_external_feed", "register_worker", "cancel_worker", "available_workers", EXTERNAL_WORK_CAPABILITY, "command", "plugin", "resume"],
             })),
             IpcRequest::Submit {
                 pipeline,
