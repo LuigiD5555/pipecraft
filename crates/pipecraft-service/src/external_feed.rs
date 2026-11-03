@@ -67,7 +67,8 @@ impl ExternalFeedDriver {
                         provider_id,
                         work,
                         ..
-                    } = &entry.message else {
+                    } = &entry.message
+                    else {
                         return Err("durable provider feed is not a snapshot".into());
                     };
                     if entry.installation_id != *installation_id
@@ -107,14 +108,13 @@ impl ExternalFeedDriver {
             })
             .collect();
         let bytes = serde_json::to_vec(&saved).map_err(|error| error.to_string())?;
-        let parent = path.parent().ok_or("provider feed has no parent directory")?;
+        let parent = path
+            .parent()
+            .ok_or("provider feed has no parent directory")?;
         tokio::fs::create_dir_all(parent)
             .await
             .map_err(|error| error.to_string())?;
-        let tmp = path.with_extension(format!(
-            "json.tmp-{}",
-            uuid::Uuid::new_v4().simple()
-        ));
+        let tmp = path.with_extension(format!("json.tmp-{}", uuid::Uuid::new_v4().simple()));
         let result: Result<(), String> = async {
             let mut file = tokio::fs::File::create(&tmp)
                 .await
@@ -148,8 +148,10 @@ impl ExternalFeedDriver {
                 snapshot_revision, ..
             } => {
                 if let Some(ExternalWorkMessage::ProviderSnapshot {
-                    snapshot_revision: old_revision, ..
-                }) = previous {
+                    snapshot_revision: old_revision,
+                    ..
+                }) = previous
+                {
                     if snapshot_revision < old_revision {
                         return Err("stale provider snapshot revision".into());
                     }
@@ -178,7 +180,8 @@ impl ExternalFeedDriver {
                     active_claims,
                     resource_evidence_revision,
                     ..
-                }) = previous else {
+                }) = previous
+                else {
                     return Err("provider delta requires durable baseline snapshot".into());
                 };
                 if base_revision != current_revision {
@@ -237,10 +240,14 @@ impl ExternalFeedDriver {
         }
         let (installation_id, provider_id) = match message {
             ExternalWorkMessage::ProviderSnapshot {
-                installation_id, provider_id, ..
+                installation_id,
+                provider_id,
+                ..
             }
             | ExternalWorkMessage::ProviderDelta {
-                installation_id, provider_id, ..
+                installation_id,
+                provider_id,
+                ..
             } => (installation_id, provider_id),
             _ => return Err("provider feed requires snapshot or delta".into()),
         };
@@ -253,7 +260,8 @@ impl ExternalFeedDriver {
             work,
             active_claims,
             ..
-        } = &next else {
+        } = &next
+        else {
             return Err("internal provider feed invariant".into());
         };
         if *snapshot_revision == 0 || *observed_at_ms == 0 {
@@ -275,7 +283,12 @@ impl ExternalFeedDriver {
             let source = work
                 .iter()
                 .find(|candidate| candidate.work_id == claim.work_id)
-                .ok_or_else(|| format!("active work {} lacks owner/scope metadata in snapshot", claim.work_id))?;
+                .ok_or_else(|| {
+                    format!(
+                        "active work {} lacks owner/scope metadata in snapshot",
+                        claim.work_id
+                    )
+                })?;
             let (exclusive_resources, shared_resources) = resource_keys(&claim.resources);
             active.push(ActiveClaim {
                 id: claim.work_id.clone(),

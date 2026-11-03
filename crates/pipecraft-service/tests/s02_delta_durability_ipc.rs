@@ -91,7 +91,10 @@ async fn accepted_delta_is_durable_and_rejected_stale_delta_cannot_rollback_revi
         .handle(delta(5, 6, vec![work(3)], vec!["HTTP_JOB:2"]))
         .await;
     assert!(next.ok, "{:?}", next.error);
-    assert_eq!(next.data.unwrap()["decision"]["offered"], json!(["HTTP_JOB:3"]));
+    assert_eq!(
+        next.data.unwrap()["decision"]["offered"],
+        json!(["HTTP_JOB:3"])
+    );
 }
 
 #[tokio::test]
