@@ -69,7 +69,10 @@ async fn delta_is_durable_and_restart_rejects_stale_provider_revision() {
         .handle(snapshot(4, 1_000_000, vec![candidate("HTTP_JOB:1")], false))
         .await;
     assert!(first.ok, "{:?}", first.error);
-    assert_eq!(first.data.unwrap()["decision"]["offered"], json!(["HTTP_JOB:1"]));
+    assert_eq!(
+        first.data.unwrap()["decision"]["offered"],
+        json!(["HTTP_JOB:1"])
+    );
 
     let applied = service.handle(delta(4, 5)).await;
     assert!(applied.ok, "{:?}", applied.error);
@@ -104,9 +107,11 @@ async fn delta_is_durable_and_restart_rejects_stale_provider_revision() {
 
     let durable_path = root.path().join(".pipelines/runtime/external-feeds.json");
     std::fs::write(durable_path, b"corrupt provider feed").unwrap();
-    assert!(RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
-        .await
-        .is_err());
+    assert!(
+        RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -137,7 +142,10 @@ async fn enforced_workers_expire_and_cancel_without_authorizing_execution() {
         .handle(snapshot(2, 1_001_000, vec![candidate("HTTP_JOB:1")], true))
         .await;
     assert!(offered.ok, "{:?}", offered.error);
-    assert_eq!(offered.data.unwrap()["decision"]["offered"], json!(["HTTP_JOB:1"]));
+    assert_eq!(
+        offered.data.unwrap()["decision"]["offered"],
+        json!(["HTTP_JOB:1"])
+    );
 
     let expired = service
         .handle(snapshot(3, 1_006_000, vec![candidate("HTTP_JOB:1")], true))
@@ -172,7 +180,9 @@ async fn oversized_provider_feed_is_refused_without_persisting_revision() {
     let oversized: Vec<Value> = (1..=10_001)
         .map(|n| candidate(&format!("HTTP_JOB:{n}")))
         .collect();
-    let denied = service.handle(snapshot(100, 1_000_000, oversized, false)).await;
+    let denied = service
+        .handle(snapshot(100, 1_000_000, oversized, false))
+        .await;
     assert!(!denied.ok);
     assert_eq!(denied.error.unwrap().code, "INVALID_EXTERNAL_FEED");
 
