@@ -6,6 +6,7 @@
 
 pub mod client;
 mod lock;
+mod external_feed;
 pub mod protocol;
 pub mod server;
 pub mod store;

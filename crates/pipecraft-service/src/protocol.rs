@@ -502,6 +502,17 @@ pub enum IpcRequest {
     ExternalWorkContract {
         message: ExternalWorkMessage,
     },
+    /// S01: admit one validated provider snapshot into the resident Tokio
+    /// scheduling driver. Resulting offers are provisional and side-effect-free.
+    PlanExternalFeed {
+        message: ExternalWorkMessage,
+        #[serde(default)]
+        settings: pipecraft_runtime::admission::AdmissionSettings,
+        #[serde(default)]
+        capacity: Option<u32>,
+        #[serde(default)]
+        last_dispatch_ms: std::collections::BTreeMap<String, u64>,
+    },
     Submit {
         pipeline: String,
         #[serde(default)]

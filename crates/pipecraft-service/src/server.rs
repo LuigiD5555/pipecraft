@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 
+use crate::external_feed::ExternalFeedDriver;
 use crate::lock::WorkspaceRuntimeLock;
 use crate::protocol::{
     validate_external_work_message, IpcRequest, IpcResponse, EXTERNAL_WORK_CAPABILITY,
@@ -60,6 +61,7 @@ pub struct RuntimeService {
     pipeline_slots: Arc<Semaphore>,
     store: JobStore,
     external_recovery: ExternalRecoveryStore,
+    external_feed: Arc<ExternalFeedDriver>,
     jobs: Arc<RwLock<BTreeMap<String, JobRecord>>>,
     cancellations: Arc<Mutex<BTreeMap<String, CancellationToken>>>,
     config: ServiceConfig,
@@ -282,6 +284,19 @@ impl RuntimeService {
                     "message": message
                 }))
             }
+            IpcRequest::PlanExternalFeed {
+                message,
+                settings,
+                capacity,
+                last_dispatch_ms,
+            } => {
+                let plan = self
+                    .external_feed
+                    .plan(&message, settings, capacity, last_dispatch_ms)
+                    .await
+                    .map_err(|message| ("INVALID_EXTERNAL_FEED".into(), message))?;
+                Ok(json!(plan))
+            }
             IpcRequest::PlanAdmission { snapshot } => {
                 let decision = pipecraft_runtime::admission::decide(&snapshot)
                     .map_err(|message| ("INVALID_ADMISSION_SNAPSHOT".into(), message))?;
@@ -296,7 +311,7 @@ impl RuntimeService {
                 "max_pipelines": self.config.max_pipelines,
                 "max_tasks": self.config.max_tasks,
                 "recovery": if self.config.recovery == RecoveryPolicy::Auto { "auto" } else { "manual" },
-                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", EXTERNAL_WORK_CAPABILITY, "command", "plugin", "resume"],
+                "capabilities": ["submit_spec", "validate_spec", "plan_spec", "plan_admission", "plan_external_feed", EXTERNAL_WORK_CAPABILITY, "command", "plugin", "resume"],
             })),
             IpcRequest::Submit {
                 pipeline,
