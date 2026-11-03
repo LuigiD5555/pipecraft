@@ -16,7 +16,7 @@ missing = [file for file in REQUIRED if not (ROOT / file).is_file()]
 if missing:
     raise SystemExit("Missing source files: " + ", ".join(missing))
 manifest = (ROOT / "Cargo.toml").read_text()
-assert 'version = "1.7.0-alpha.1"' in manifest
+assert 'version = "1.7.0-alpha.2"' in manifest
 assert "plan_admission" in (ROOT / "crates/pipecraft-service/src/server.rs").read_text()
 snapshot = json.loads((ROOT / "examples/10-external-admission/snapshot.json").read_text())
 assert snapshot["revision"] >= 1 and snapshot["candidates"]
