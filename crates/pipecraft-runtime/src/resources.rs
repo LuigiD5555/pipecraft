@@ -444,13 +444,7 @@ mod tests {
     fn k03_mixed_browser_and_http_never_oversubscribe_on_dynamic_budget() {
         for seed in 0..128u32 {
             let resources = GlobalResourceManager::with_point_capacity(4);
-            let browser = [demand(
-                "browser:pool",
-                3,
-                1,
-                ResourceShareMode::Shared,
-                1,
-            )];
+            let browser = [demand("browser:pool", 3, 1, ResourceShareMode::Shared, 1)];
             let http = [demand("http:pool", 1, 1, ResourceShareMode::Shared, 8)];
             let held_browser = resources
                 .try_external_occupancy("browser-a", &browser)
