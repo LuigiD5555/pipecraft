@@ -24,6 +24,7 @@ on:
       - 'crates/pipecraft-service/tests/s01_external_feed_ipc.rs'
       - 'crates/pipecraft-service/tests/s02_worker_registry_ipc.rs'
       - 'crates/pipecraft-service/tests/s03_fake_provider_e2e.rs'
+      - 'crates/pipecraft-service/tests/s03_socket_e2e.rs'
       - 'python/src/pipecraft/client.py'
       - 'python/tests/test_thin_client.py'
       - '.github/workflows/g2-runtime-fast.yml'
