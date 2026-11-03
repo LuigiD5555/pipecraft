@@ -5,8 +5,8 @@
 //! resume safely persisted successful nodes after a service restart.
 
 pub mod client;
-mod lock;
 mod external_feed;
+mod lock;
 pub mod protocol;
 pub mod server;
 pub mod store;
