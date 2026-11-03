@@ -193,3 +193,34 @@ fn external_scope_occupancy_blocks_conflicts_without_cross_scope_starvation() {
     assert_eq!(decision.blocked[0].reason, "RESOURCE_BUSY");
     assert_eq!(decision, decide(&snapshot).unwrap());
 }
+
+#[test]
+fn long_waiting_group_eventually_overtakes_fresh_high_priority_work() {
+    let mut settings = settings(AdmissionPolicy::Fair);
+    settings.aging_ms = 120_000;
+    for tick in 0..=90u64 {
+        let now_ms = 1_000 + tick * 120_000;
+        let snapshot = AdmissionSnapshot {
+            revision: tick + 1,
+            now_ms,
+            candidates: vec![
+                candidate("fresh", "fresh", 0, now_ms, 1),
+                candidate("waiting", "waiting", 90, 1_000, 1),
+            ],
+            active: vec![],
+            last_dispatch_ms: BTreeMap::new(),
+            settings: settings.clone(),
+            capacity: Some(1),
+            adaptive_capacity: None,
+        };
+        let decision = decide(&snapshot).unwrap();
+        let first = decision.offered.first().map(String::as_str);
+        if tick == 0 {
+            assert_eq!(first, Some("fresh"));
+        }
+        if tick == 90 {
+            assert_eq!(first, Some("waiting"));
+        }
+        assert_eq!(decision, decide(&snapshot).unwrap());
+    }
+}
