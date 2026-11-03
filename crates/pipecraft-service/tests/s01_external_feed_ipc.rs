@@ -36,12 +36,9 @@ fn snapshot(revision: u64) -> serde_json::Value {
 #[tokio::test]
 async fn resident_ipc_admits_snapshot_and_returns_only_provisional_offers() {
     let root = tempfile::tempdir().unwrap();
-    let service = RuntimeService::open(
-        root.path().to_path_buf(),
-        ServiceConfig::default(),
-    )
-    .await
-    .unwrap();
+    let service = RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
+        .await
+        .unwrap();
     let ping = service.handle(IpcRequest::Ping).await;
     assert!(ping.ok);
     assert!(ping.data.unwrap()["capabilities"]
@@ -56,7 +53,10 @@ async fn resident_ipc_admits_snapshot_and_returns_only_provisional_offers() {
     let data = result.data.unwrap();
     assert_eq!(data["snapshot_revision"], 21);
     assert_eq!(data["decision"]["offered"], json!(["HTTP_JOB:1"]));
-    assert_eq!(data["provisional_offers"][0]["required_worker_capability"], "extracta.http");
+    assert_eq!(
+        data["provisional_offers"][0]["required_worker_capability"],
+        "extracta.http"
+    );
     assert_eq!(data["provisional_offers"][0]["requires_confirmation"], true);
     assert_eq!(data["side_effects"], false);
     assert!(data.get("claim_epoch").is_none());
