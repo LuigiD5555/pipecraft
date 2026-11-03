@@ -12,7 +12,6 @@ use tokio::sync::{Mutex, RwLock, Semaphore};
 
 use crate::external_feed::ExternalFeedDriver;
 use crate::lock::WorkspaceRuntimeLock;
-use crate::worker_registry::WorkerRegistry;
 use crate::protocol::{
     validate_external_work_message, IpcRequest, IpcResponse, EXTERNAL_WORK_CAPABILITY,
     EXTERNAL_WORK_PROTOCOL_VERSION, PROTOCOL_VERSION,
@@ -20,6 +19,7 @@ use crate::protocol::{
 use crate::store::{
     ExternalReconcileObservation, ExternalRecoveryStore, JobRecord, JobRequest, JobStatus, JobStore,
 };
+use crate::worker_registry::WorkerRegistry;
 
 const MAX_REQUEST_BYTES: usize = 8 * 1024 * 1024;
 const MAX_IPC_CONNECTIONS: usize = 64;
@@ -301,14 +301,25 @@ impl RuntimeService {
                     .map_err(|message| ("INVALID_EXTERNAL_FEED".into(), message))?;
                 Ok(json!(plan))
             }
-            IpcRequest::RegisterWorker { worker_id, capabilities, now_ms, ttl_ms } => {
-                let worker = self.worker_registry.register(worker_id, capabilities, now_ms, ttl_ms)
-                    .await.map_err(|message| ("INVALID_WORKER".into(), message))?;
+            IpcRequest::RegisterWorker {
+                worker_id,
+                capabilities,
+                now_ms,
+                ttl_ms,
+            } => {
+                let worker = self
+                    .worker_registry
+                    .register(worker_id, capabilities, now_ms, ttl_ms)
+                    .await
+                    .map_err(|message| ("INVALID_WORKER".into(), message))?;
                 Ok(json!({"worker": worker, "side_effects": false}))
             }
             IpcRequest::CancelWorker { worker_id, now_ms } => {
-                let worker = self.worker_registry.cancel(&worker_id, now_ms)
-                    .await.map_err(|message| ("INVALID_WORKER".into(), message))?;
+                let worker = self
+                    .worker_registry
+                    .cancel(&worker_id, now_ms)
+                    .await
+                    .map_err(|message| ("INVALID_WORKER".into(), message))?;
                 Ok(json!({"worker": worker, "side_effects": false}))
             }
             IpcRequest::AvailableWorkers { capability, now_ms } => {

@@ -33,7 +33,9 @@ impl WorkerRegistry {
     ) -> Result<WorkerView, String> {
         if worker_id.is_empty()
             || worker_id.len() > 128
-            || !worker_id.chars().all(|c| c.is_ascii_alphanumeric() || "-_:.".contains(c))
+            || !worker_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_:.".contains(c))
         {
             return Err("invalid worker id".into());
         }
@@ -46,8 +48,13 @@ impl WorkerRegistry {
         }
         let unique = capabilities.iter().cloned().collect::<BTreeSet<_>>();
         if unique.len() != capabilities.len()
-            || unique.iter().any(|cap| cap.is_empty() || cap.len() > 128
-                || !cap.chars().all(|c| c.is_ascii_alphanumeric() || "-_:.".contains(c)))
+            || unique.iter().any(|cap| {
+                cap.is_empty()
+                    || cap.len() > 128
+                    || !cap
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "-_:.".contains(c))
+            })
         {
             return Err("invalid or duplicate worker capability".into());
         }
@@ -79,10 +86,13 @@ impl WorkerRegistry {
     pub async fn available(&self, capability: &str, now_ms: u64) -> Vec<WorkerView> {
         let mut workers = self.workers.lock().await;
         workers.retain(|_, worker| worker.expires_at_ms > now_ms);
-        workers.values()
-            .filter(|worker| !worker.cancelled
-                && worker.capabilities.iter().any(|cap| cap == capability))
-            .cloned().collect()
+        workers
+            .values()
+            .filter(|worker| {
+                !worker.cancelled && worker.capabilities.iter().any(|cap| cap == capability)
+            })
+            .cloned()
+            .collect()
     }
 }
 
@@ -93,11 +103,17 @@ mod tests {
     #[tokio::test]
     async fn ttl_cancel_and_capability_are_fail_closed() {
         let registry = WorkerRegistry::default();
-        registry.register("w1".into(), vec!["browser".into()], 1000, 1000).await.unwrap();
+        registry
+            .register("w1".into(), vec!["browser".into()], 1000, 1000)
+            .await
+            .unwrap();
         assert_eq!(registry.available("browser", 1999).await.len(), 1);
         assert!(registry.available("http", 1999).await.is_empty());
         assert!(registry.available("browser", 2000).await.is_empty());
-        registry.register("w1".into(), vec!["browser".into()], 3000, 1000).await.unwrap();
+        registry
+            .register("w1".into(), vec!["browser".into()], 3000, 1000)
+            .await
+            .unwrap();
         assert!(registry.cancel("w1", 3100).await.unwrap().cancelled);
         assert!(registry.available("browser", 3100).await.is_empty());
         assert!(registry.cancel("w1", 4000).await.is_err());
@@ -106,9 +122,18 @@ mod tests {
     #[tokio::test]
     async fn invalid_registration_never_replaces_valid_worker() {
         let registry = WorkerRegistry::default();
-        registry.register("w1".into(), vec!["http".into()], 1000, 5000).await.unwrap();
-        assert!(registry.register("w1".into(), vec!["http".into(), "http".into()], 1100, 5000).await.is_err());
-        assert!(registry.register("bad/id".into(), vec!["http".into()], 1100, 5000).await.is_err());
+        registry
+            .register("w1".into(), vec!["http".into()], 1000, 5000)
+            .await
+            .unwrap();
+        assert!(registry
+            .register("w1".into(), vec!["http".into(), "http".into()], 1100, 5000)
+            .await
+            .is_err());
+        assert!(registry
+            .register("bad/id".into(), vec!["http".into()], 1100, 5000)
+            .await
+            .is_err());
         assert_eq!(registry.available("http", 1100).await.len(), 1);
     }
 }

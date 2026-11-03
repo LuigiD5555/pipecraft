@@ -7,10 +7,10 @@
 pub mod client;
 mod external_feed;
 mod lock;
-mod worker_registry;
 pub mod protocol;
 pub mod server;
 pub mod store;
+mod worker_registry;
 
 pub use client::{default_endpoint, endpoint_path, ServiceClient};
 pub use lock::WorkspaceRuntimeLock;
