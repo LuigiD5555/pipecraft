@@ -31,8 +31,7 @@ fn a03_extracta_first_offer_and_wakeup_parity() {
     );
     assert!(fixture.cases.len() >= 15);
     for case in fixture.cases {
-        let first = decide(&case.snapshot)
-            .unwrap_or_else(|err| panic!("{}: {err}", case.id));
+        let first = decide(&case.snapshot).unwrap_or_else(|err| panic!("{}: {err}", case.id));
         assert_eq!(
             first.offered.first().cloned(),
             case.expected_first,
@@ -40,8 +39,7 @@ fn a03_extracta_first_offer_and_wakeup_parity() {
             case.id
         );
         assert_eq!(
-            first.next_wakeup_at_ms,
-            case.expected_wakeup,
+            first.next_wakeup_at_ms, case.expected_wakeup,
             "timer wakeup must match Extracta oracle: {}",
             case.id
         );
