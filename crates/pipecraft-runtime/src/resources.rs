@@ -441,6 +441,69 @@ mod tests {
     }
 
     #[test]
+    fn k03_mixed_browser_and_http_never_oversubscribe_on_dynamic_budget() {
+        for seed in 0..128u32 {
+            let resources = GlobalResourceManager::with_point_capacity(4);
+            let browser = [demand(
+                "browser:pool",
+                3,
+                1,
+                ResourceShareMode::Shared,
+                1,
+            )];
+            let http = [demand("http:pool", 1, 1, ResourceShareMode::Shared, 8)];
+            let held_browser = resources
+                .try_external_occupancy("browser-a", &browser)
+                .unwrap()
+                .unwrap();
+            assert!(resources
+                .try_external_occupancy("browser-b", &browser)
+                .unwrap()
+                .is_none());
+            let held_http = resources
+                .try_acquire_demands("http-a", &http)
+                .unwrap()
+                .unwrap();
+            assert_eq!(resources.snapshot().points_used, 4);
+            assert!(resources
+                .try_acquire_demands("http-b", &http)
+                .unwrap()
+                .is_none());
+
+            // A lower budget must not steal existing leases or admit new work.
+            resources.set_point_capacity(2).unwrap();
+            assert_eq!(resources.snapshot().points_used, 4);
+            assert!(resources
+                .try_acquire_demands("http-b", &http)
+                .unwrap()
+                .is_none());
+            if seed % 2 == 0 {
+                drop(held_http);
+                drop(held_browser);
+            } else {
+                drop(held_browser);
+                drop(held_http);
+            }
+            assert_eq!(resources.snapshot().points_used, 0);
+            let next_http = resources
+                .try_acquire_demands("http-b", &http)
+                .unwrap()
+                .unwrap();
+            assert!(resources.snapshot().points_used <= resources.snapshot().points_limit);
+            assert!(resources
+                .try_external_occupancy("browser-c", &browser)
+                .unwrap()
+                .is_none());
+            drop(next_http);
+            resources.set_point_capacity(4).unwrap();
+            assert!(resources
+                .try_external_occupancy("browser-c", &browser)
+                .unwrap()
+                .is_some());
+        }
+    }
+
+    #[test]
     fn weighted_points_prevent_oversubscription() {
         let resources = GlobalResourceManager::with_point_capacity(4);
         let first = resources
