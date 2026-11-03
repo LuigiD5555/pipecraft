@@ -10,6 +10,7 @@ on:
       - 'crates/pipecraft-runtime/src/manager.rs'
       - 'crates/pipecraft-runtime/src/capacity.rs'
       - 'crates/pipecraft-runtime/src/scheduler.rs'
+      - 'crates/pipecraft-runtime/tests/dag_admission_regression.rs'
       - 'crates/pipecraft-runtime/tests/admission_gate.rs'
       - 'crates/pipecraft-runtime/tests/extracta_capacity_parity.rs'
       - 'tests/golden/extracta-capacity-v1.json'
