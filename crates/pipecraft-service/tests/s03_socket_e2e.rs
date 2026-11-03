@@ -49,90 +49,108 @@ async fn fake_provider_and_legacy_client_roundtrip_over_real_ndjson_socket() {
     assert_eq!(ping["ok"], true);
     assert_eq!(ping["data"]["service"], "pipecraft");
 
-    let legacy = exchange(&socket, json!({
-        "op": "plan_admission",
-        "snapshot": {"revision": 1, "now_ms": 1_000_000, "capacity": 2,
-            "candidates": [], "active": []}
-    }))
+    let legacy = exchange(
+        &socket,
+        json!({
+            "op": "plan_admission",
+            "snapshot": {"revision": 1, "now_ms": 1_000_000, "capacity": 2,
+                "candidates": [], "active": []}
+        }),
+    )
     .await;
     assert_eq!(legacy["ok"], true);
     assert_eq!(legacy["data"]["requires_confirmation"], true);
 
-    let registered = exchange(&socket, json!({
-        "op": "register_worker", "worker_id": "socket-worker",
-        "capabilities": ["extracta.http"], "now_ms": 1_000_000, "ttl_ms": 10_000
-    }))
+    let registered = exchange(
+        &socket,
+        json!({
+            "op": "register_worker", "worker_id": "socket-worker",
+            "capabilities": ["extracta.http"], "now_ms": 1_000_000, "ttl_ms": 10_000
+        }),
+    )
     .await;
     assert_eq!(registered["ok"], true);
 
-    let feed = exchange(&socket, json!({
-        "op": "plan_external_feed", "capacity": 1,
-        "enforce_worker_registration": true,
-        "message": {
-            "op": "provider_snapshot",
-            "protocol": "pipecraft.external-work/v1",
-            "request_id": "s03-socket-1",
-            "installation_id": "s03-socket",
-            "provider_id": "extracta/fake/v1",
-            "snapshot_revision": 1,
-            "observed_at_ms": 1_000_000,
-            "resource_evidence_revision": 1,
-            "work": [{
-                "work_id": "HTTP_JOB:9", "owner_group": "source:9",
-                "queue_kind": "HTTP_JOB", "priority": 5,
-                "eligible_since_ms": 900_000, "ready_at_ms": 900_000,
-                "weight": 1, "source_limit": 1,
-                "scopes": [], "resources": [],
-                "required_worker_capability": "extracta.http"
-            }],
-            "active_claims": []
-        }
-    }))
+    let feed = exchange(
+        &socket,
+        json!({
+            "op": "plan_external_feed", "capacity": 1,
+            "enforce_worker_registration": true,
+            "message": {
+                "op": "provider_snapshot",
+                "protocol": "pipecraft.external-work/v1",
+                "request_id": "s03-socket-1",
+                "installation_id": "s03-socket",
+                "provider_id": "extracta/fake/v1",
+                "snapshot_revision": 1,
+                "observed_at_ms": 1_000_000,
+                "resource_evidence_revision": 1,
+                "work": [{
+                    "work_id": "HTTP_JOB:9", "owner_group": "source:9",
+                    "queue_kind": "HTTP_JOB", "priority": 5,
+                    "eligible_since_ms": 900_000, "ready_at_ms": 900_000,
+                    "weight": 1, "source_limit": 1,
+                    "scopes": [], "resources": [],
+                    "required_worker_capability": "extracta.http"
+                }],
+                "active_claims": []
+            }
+        }),
+    )
     .await;
     assert_eq!(feed["ok"], true);
     assert_eq!(feed["data"]["decision"]["offered"], json!(["HTTP_JOB:9"]));
-    assert_eq!(feed["data"]["provisional_offers"][0]["requires_confirmation"], true);
+    assert_eq!(
+        feed["data"]["provisional_offers"][0]["requires_confirmation"],
+        true
+    );
     assert_eq!(feed["data"]["side_effects"], false);
 
     // The provider's fake claim is transmitted and validated, not minted by the service.
-    let confirmation = exchange(&socket, json!({
-        "op": "external_work_contract",
-        "message": {
-            "op": "offer_confirmation",
-            "protocol": "pipecraft.external-work/v1",
-            "request_id": "s03-socket-confirm",
-            "installation_id": "s03-socket",
-            "provider_id": "extracta/fake/v1",
-            "offer_id": "fake-offer-9",
-            "work_id": "HTTP_JOB:9",
-            "snapshot_revision": 1,
-            "result": "CONFIRMED",
-            "claim_epoch": 7,
-            "claim_id": "fake-claim-9",
-            "lease_until_ms": 1_010_000,
-            "assigned_worker_capability": "extracta.http",
-            "operation_keys": ["fake:HTTP_JOB:9:attempt1"]
-        }
-    }))
+    let confirmation = exchange(
+        &socket,
+        json!({
+            "op": "external_work_contract",
+            "message": {
+                "op": "offer_confirmation",
+                "protocol": "pipecraft.external-work/v1",
+                "request_id": "s03-socket-confirm",
+                "installation_id": "s03-socket",
+                "provider_id": "extracta/fake/v1",
+                "offer_id": "fake-offer-9",
+                "work_id": "HTTP_JOB:9",
+                "snapshot_revision": 1,
+                "result": "CONFIRMED",
+                "claim_epoch": 7,
+                "claim_id": "fake-claim-9",
+                "lease_until_ms": 1_010_000,
+                "assigned_worker_capability": "extracta.http",
+                "operation_keys": ["fake:HTTP_JOB:9:attempt1"]
+            }
+        }),
+    )
     .await;
     assert_eq!(confirmation["ok"], true);
     assert_eq!(confirmation["data"]["side_effects"], false);
     assert_eq!(confirmation["data"]["message"]["claim_epoch"], 7);
 
-    let invalid = exchange(&socket, json!({
-        "op": "external_work_contract",
-        "message": {
-            "op": "offer_confirmation",
-            "protocol": "pipecraft.external-work/v1",
-            "request_id": "s03-socket-bad",
-            "installation_id": "s03-socket",
-            "provider_id": "extracta/fake/v1",
-            "offer_id": "fake-offer-bad",
-            "work_id": "HTTP_JOB:9",
-            "snapshot_revision": 1,
-            "result": "CONFIRMED"
-        }
-    }))
+    let invalid = exchange(
+        &socket,
+        json!({
+            "op": "external_work_contract",
+            "message": {
+                "op": "offer_confirmation",
+                "protocol": "pipecraft.external-work/v1",
+                "request_id": "s03-socket-bad",
+                "installation_id": "s03-socket",
+                "provider_id": "extracta/fake/v1",
+                "offer_id": "fake-offer-bad",
+                "work_id": "HTTP_JOB:9",
+                "snapshot_revision": 1,
+                "result": "CONFIRMED"
+            }
+        }),
+    )
     .await;
     assert_eq!(invalid["ok"], false);
     assert_eq!(invalid["error"]["code"], "INVALID_EXTERNAL_WORK");
