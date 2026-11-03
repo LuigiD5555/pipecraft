@@ -83,6 +83,20 @@ impl WorkerRegistry {
         Ok(worker.clone())
     }
 
+    pub async fn capabilities(&self, message: &crate::protocol::ExternalWorkMessage) -> BTreeSet<String> {
+        let observed_at_ms = match message {
+            crate::protocol::ExternalWorkMessage::ProviderSnapshot { observed_at_ms, .. }
+            | crate::protocol::ExternalWorkMessage::ProviderDelta { observed_at_ms, .. } => *observed_at_ms,
+            _ => return BTreeSet::new(),
+        };
+        let mut workers = self.workers.lock().await;
+        workers.retain(|_, worker| worker.expires_at_ms > observed_at_ms);
+        workers.values()
+            .filter(|worker| !worker.cancelled)
+            .flat_map(|worker| worker.capabilities.iter().cloned())
+            .collect()
+    }
+
     pub async fn available(&self, capability: &str, now_ms: u64) -> Vec<WorkerView> {
         let mut workers = self.workers.lock().await;
         workers.retain(|_, worker| worker.expires_at_ms > now_ms);

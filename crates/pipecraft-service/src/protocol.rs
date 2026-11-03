@@ -512,6 +512,8 @@ pub enum IpcRequest {
         capacity: Option<u32>,
         #[serde(default)]
         last_dispatch_ms: std::collections::BTreeMap<String, u64>,
+        #[serde(default)]
+        enforce_worker_registration: bool,
     },
     /// S02: worker registration is advisory, never an execution claim.
     RegisterWorker {

@@ -74,6 +74,38 @@ async fn accepted_delta_is_durable_and_rejected_stale_delta_cannot_rollback_revi
     assert_eq!(data["decision"]["offered"], json!(["HTTP_JOB:2"]));
     assert_eq!(data["side_effects"], false);
 
+    let missing_worker = serde_json::from_value(json!({
+        "op": "plan_external_feed",
+        "enforce_worker_registration": true,
+        "capacity": 3,
+        "message": {
+            "op": "provider_snapshot",
+            "protocol": "pipecraft.external-work/v1",
+            "request_id": "s02-worker-guard",
+            "installation_id": "guard-install",
+            "provider_id": "extracta/guard/v1",
+            "snapshot_revision": 1,
+            "observed_at_ms": 1000000,
+            "resource_evidence_revision": 1,
+            "work": [{
+                "work_id": "HTTP_JOB:99",
+                "owner_group": "source:1",
+                "queue_kind": "HTTP_JOB",
+                "priority": 1,
+                "eligible_since_ms": 900000,
+                "ready_at_ms": 900000,
+                "weight": 1,
+                "source_limit": 1,
+                "scopes": [],
+                "resources": [],
+                "required_worker_capability": "extracta.http"
+            }],
+            "active_claims": []
+        }
+    })).unwrap();
+    let guard = service.handle(missing_worker).await;
+    assert!(guard.ok, "{:?}", guard.error);
+    assert!(guard.data.unwrap()["provisional_offers"].as_array().unwrap().is_empty());
     let stale = service.handle(delta(4, 6, vec![work(3)], vec![])).await;
     assert!(!stale.ok);
     let duplicate_removal = service

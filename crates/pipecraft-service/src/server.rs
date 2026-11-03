@@ -295,10 +295,22 @@ impl RuntimeService {
                 settings,
                 capacity,
                 last_dispatch_ms,
+                enforce_worker_registration,
             } => {
+                let capabilities = if enforce_worker_registration {
+                    Some(self.worker_registry.capabilities(&message).await)
+                } else {
+                    None
+                };
                 let plan = self
                     .external_feed
-                    .plan(&message, settings, capacity, last_dispatch_ms)
+                    .plan_with_workers(
+                        &message,
+                        settings,
+                        capacity,
+                        last_dispatch_ms,
+                        capabilities.as_ref(),
+                    )
                     .await
                     .map_err(|message| ("INVALID_EXTERNAL_FEED".into(), message))?;
                 Ok(json!(plan))

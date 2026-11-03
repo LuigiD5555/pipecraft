@@ -234,6 +234,17 @@ impl ExternalFeedDriver {
         capacity: Option<u32>,
         last_dispatch_ms: BTreeMap<String, u64>,
     ) -> Result<ExternalFeedPlan, String> {
+        self.plan_with_workers(message, settings, capacity, last_dispatch_ms, None).await
+    }
+
+    pub async fn plan_with_workers(
+        &self,
+        message: &ExternalWorkMessage,
+        settings: AdmissionSettings,
+        capacity: Option<u32>,
+        last_dispatch_ms: BTreeMap<String, u64>,
+        registered_capabilities: Option<&BTreeSet<String>>,
+    ) -> Result<ExternalFeedPlan, String> {
         validate_external_work_message(message)?;
         if capacity == Some(0) {
             return Err("capacity must be positive".into());
@@ -316,7 +327,16 @@ impl ExternalFeedDriver {
                     scopes: candidate.scopes.clone(),
                     exclusive_resources,
                     shared_resources,
-                    hard_block: candidate.hard_block.clone(),
+                    hard_block: if registered_capabilities.is_some_and(|caps| {
+                        candidate.required_worker_capability.as_ref().map_or(
+                            caps.is_empty(),
+                            |needed| !caps.contains(needed),
+                        )
+                    }) {
+                        Some("NO_REGISTERED_WORKER".into())
+                    } else {
+                        candidate.hard_block.clone()
+                    },
                     dependencies_met: true,
                     group_limit: candidate.source_limit,
                 })
