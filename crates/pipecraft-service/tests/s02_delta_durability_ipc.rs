@@ -102,10 +102,14 @@ async fn accepted_delta_is_durable_and_rejected_stale_delta_cannot_rollback_revi
             }],
             "active_claims": []
         }
-    })).unwrap();
+    }))
+    .unwrap();
     let guard = service.handle(missing_worker).await;
     assert!(guard.ok, "{:?}", guard.error);
-    assert!(guard.data.unwrap()["provisional_offers"].as_array().unwrap().is_empty());
+    assert!(guard.data.unwrap()["provisional_offers"]
+        .as_array()
+        .unwrap()
+        .is_empty());
     let stale = service.handle(delta(4, 6, vec![work(3)], vec![])).await;
     assert!(!stale.ok);
     let duplicate_removal = service

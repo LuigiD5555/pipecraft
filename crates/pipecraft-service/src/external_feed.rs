@@ -234,7 +234,8 @@ impl ExternalFeedDriver {
         capacity: Option<u32>,
         last_dispatch_ms: BTreeMap<String, u64>,
     ) -> Result<ExternalFeedPlan, String> {
-        self.plan_with_workers(message, settings, capacity, last_dispatch_ms, None).await
+        self.plan_with_workers(message, settings, capacity, last_dispatch_ms, None)
+            .await
     }
 
     pub async fn plan_with_workers(
@@ -328,10 +329,10 @@ impl ExternalFeedDriver {
                     exclusive_resources,
                     shared_resources,
                     hard_block: if registered_capabilities.is_some_and(|caps| {
-                        candidate.required_worker_capability.as_ref().map_or(
-                            caps.is_empty(),
-                            |needed| !caps.contains(needed),
-                        )
+                        candidate
+                            .required_worker_capability
+                            .as_ref()
+                            .map_or(caps.is_empty(), |needed| !caps.contains(needed))
                     }) {
                         Some("NO_REGISTERED_WORKER".into())
                     } else {
