@@ -926,7 +926,14 @@ steps:
             .max_workers(1)
             .cancellation_token(token);
         let handle = std::thread::spawn(move || engine.run(&definition, &context));
-        std::thread::sleep(Duration::from_millis(20));
+        // Wait for the first executor call rather than assuming a runner starts
+        // the scheduling thread within 20 ms. Cancellation must interrupt an
+        // active job without permitting the next pending job to start.
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while calls.load(Ordering::SeqCst) == 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "first job never started");
         cancel.cancel();
         let run = handle.join().unwrap();
         assert!(!run.success);
