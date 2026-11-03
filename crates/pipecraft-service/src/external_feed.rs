@@ -373,7 +373,7 @@ impl ExternalFeedDriver {
 
         if feeds.get(&key) != Some(&next) {
             let mut next_feeds = feeds.clone();
-            next_feeds.insert(key, next);
+            next_feeds.insert(key, next.clone());
             self.persist(&next_feeds).await?;
             *feeds = next_feeds;
         }
