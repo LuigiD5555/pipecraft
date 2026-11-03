@@ -1,0 +1,392 @@
+{
+  "schema_version": "extracta.pipecraft.g2.capacity-parity/v1",
+  "oracle": "src/extracta/acquisition/scheduling_core.py::effective_capacity",
+  "cases": [
+    {
+      "id": "baseline",
+      "profile": {},
+      "evidence": {},
+      "expected": {
+        "points": 4,
+        "reason": "INITIAL"
+      }
+    },
+    {
+      "id": "clean_4",
+      "profile": {},
+      "evidence": {
+        "clean": 4
+      },
+      "expected": {
+        "points": 4,
+        "reason": "INITIAL"
+      }
+    },
+    {
+      "id": "clean_5",
+      "profile": {},
+      "evidence": {
+        "clean": 5
+      },
+      "expected": {
+        "points": 5,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "clean_10",
+      "profile": {},
+      "evidence": {
+        "clean": 10
+      },
+      "expected": {
+        "points": 6,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "clean_500",
+      "profile": {},
+      "evidence": {
+        "clean": 500
+      },
+      "expected": {
+        "points": 8,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "recover_one_bad",
+      "profile": {},
+      "evidence": {
+        "clean": 10,
+        "bad": 1,
+        "bad_groups": 1
+      },
+      "expected": {
+        "points": 3,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "recover_only_bad",
+      "profile": {},
+      "evidence": {
+        "clean": 0,
+        "bad": 1,
+        "bad_groups": 1
+      },
+      "expected": {
+        "points": 1,
+        "reason": "RECOVERING"
+      }
+    },
+    {
+      "id": "widespread_2_groups",
+      "profile": {},
+      "evidence": {
+        "clean": 4,
+        "bad": 4,
+        "bad_groups": 2
+      },
+      "expected": {
+        "points": 1,
+        "reason": "WIDESPREAD_FAILURES"
+      }
+    },
+    {
+      "id": "one_bad_group",
+      "profile": {},
+      "evidence": {
+        "clean": 4,
+        "bad": 4,
+        "bad_groups": 1
+      },
+      "expected": {
+        "points": 1,
+        "reason": "RECOVERING"
+      }
+    },
+    {
+      "id": "small_sample",
+      "profile": {},
+      "evidence": {
+        "clean": 1,
+        "bad": 1,
+        "bad_groups": 2
+      },
+      "expected": {
+        "points": 1,
+        "reason": "RECOVERING"
+      }
+    },
+    {
+      "id": "failure_ratio_below",
+      "profile": {},
+      "evidence": {
+        "clean": 7,
+        "bad": 2,
+        "bad_groups": 2
+      },
+      "expected": {
+        "points": 2,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "failure_ratio_equal",
+      "profile": {},
+      "evidence": {
+        "clean": 6,
+        "bad": 2,
+        "bad_groups": 2
+      },
+      "expected": {
+        "points": 1,
+        "reason": "WIDESPREAD_FAILURES"
+      }
+    },
+    {
+      "id": "failure_ratio_high",
+      "profile": {},
+      "evidence": {
+        "clean": 1,
+        "bad": 3,
+        "bad_groups": 3
+      },
+      "expected": {
+        "points": 1,
+        "reason": "WIDESPREAD_FAILURES"
+      }
+    },
+    {
+      "id": "mem_8192",
+      "profile": {},
+      "evidence": {
+        "memory_available_mib": 8192
+      },
+      "expected": {
+        "points": 4,
+        "reason": "INITIAL"
+      }
+    },
+    {
+      "id": "mem_2000",
+      "profile": {},
+      "evidence": {
+        "memory_available_mib": 2000
+      },
+      "expected": {
+        "points": 1,
+        "reason": "MEMORY_PRESSURE"
+      }
+    },
+    {
+      "id": "mem_100",
+      "profile": {},
+      "evidence": {
+        "memory_available_mib": 100
+      },
+      "expected": {
+        "points": 1,
+        "reason": "MEMORY_PRESSURE"
+      }
+    },
+    {
+      "id": "mem_1024",
+      "profile": {},
+      "evidence": {
+        "memory_available_mib": 1024
+      },
+      "expected": {
+        "points": 1,
+        "reason": "MEMORY_PRESSURE"
+      }
+    },
+    {
+      "id": "mem_exact_for_5",
+      "profile": {},
+      "evidence": {
+        "clean": 5,
+        "memory_available_mib": 4524
+      },
+      "expected": {
+        "points": 5,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "cpu_threshold_below",
+      "profile": {},
+      "evidence": {
+        "cpu_load_ratio": 0.84
+      },
+      "expected": {
+        "points": 4,
+        "reason": "INITIAL"
+      }
+    },
+    {
+      "id": "cpu_threshold_equal",
+      "profile": {},
+      "evidence": {
+        "cpu_load_ratio": 0.85
+      },
+      "expected": {
+        "points": 2,
+        "reason": "CPU_PRESSURE"
+      }
+    },
+    {
+      "id": "cpu_saturated",
+      "profile": {},
+      "evidence": {
+        "cpu_load_ratio": 0.99
+      },
+      "expected": {
+        "points": 2,
+        "reason": "CPU_PRESSURE"
+      }
+    },
+    {
+      "id": "cpu_mem_combined",
+      "profile": {},
+      "evidence": {
+        "clean": 20,
+        "memory_available_mib": 2600,
+        "cpu_load_ratio": 0.92
+      },
+      "expected": {
+        "points": 1,
+        "reason": "CPU_PRESSURE"
+      }
+    },
+    {
+      "id": "widespread_and_pressure",
+      "profile": {},
+      "evidence": {
+        "clean": 6,
+        "bad": 4,
+        "bad_groups": 3,
+        "memory_available_mib": 1024,
+        "cpu_load_ratio": 0.96
+      },
+      "expected": {
+        "points": 1,
+        "reason": "CPU_PRESSURE"
+      }
+    },
+    {
+      "id": "no_signals_after_error",
+      "profile": {},
+      "evidence": {
+        "bad": 1
+      },
+      "expected": {
+        "points": 1,
+        "reason": "RECOVERING"
+      }
+    },
+    {
+      "id": "fixed_floor",
+      "profile": {
+        "fixed": 1
+      },
+      "evidence": {
+        "clean": 400,
+        "bad": 200,
+        "bad_groups": 10,
+        "cpu_load_ratio": 0.99
+      },
+      "expected": {
+        "points": 1,
+        "reason": "FIXED"
+      }
+    },
+    {
+      "id": "fixed_6",
+      "profile": {
+        "fixed": 6
+      },
+      "evidence": {
+        "memory_available_mib": 1,
+        "cpu_load_ratio": 0.99
+      },
+      "expected": {
+        "points": 6,
+        "reason": "FIXED"
+      }
+    },
+    {
+      "id": "fixed_above_ceiling",
+      "profile": {
+        "fixed": 15
+      },
+      "evidence": {},
+      "expected": {
+        "points": 15,
+        "reason": "FIXED"
+      }
+    },
+    {
+      "id": "custom_bounds",
+      "profile": {
+        "initial": 2,
+        "ceiling": 6,
+        "floor": 2,
+        "grow_every_clean": 3
+      },
+      "evidence": {
+        "clean": 12
+      },
+      "expected": {
+        "points": 6,
+        "reason": "GROWN_BY_EVIDENCE"
+      }
+    },
+    {
+      "id": "custom_mem",
+      "profile": {
+        "memory_reserve_mib": 256,
+        "mib_per_point": 256
+      },
+      "evidence": {
+        "memory_available_mib": 768
+      },
+      "expected": {
+        "points": 2,
+        "reason": "MEMORY_PRESSURE"
+      }
+    },
+    {
+      "id": "custom_cpu",
+      "profile": {
+        "cpu_load_limit": 0.7
+      },
+      "evidence": {
+        "cpu_load_ratio": 0.75
+      },
+      "expected": {
+        "points": 2,
+        "reason": "CPU_PRESSURE"
+      }
+    },
+    {
+      "id": "custom_bad_threshold",
+      "profile": {
+        "min_samples": 6,
+        "min_bad_groups": 3,
+        "failure_ratio": 0.4
+      },
+      "evidence": {
+        "clean": 3,
+        "bad": 3,
+        "bad_groups": 3
+      },
+      "expected": {
+        "points": 1,
+        "reason": "WIDESPREAD_FAILURES"
+      }
+    }
+  ]
+}
