@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - integracion/s03-fake-provider-20261102
     tags:
       - 'v*'
     paths:

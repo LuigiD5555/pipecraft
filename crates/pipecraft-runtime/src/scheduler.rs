@@ -831,6 +831,20 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
             self.max_active.fetch_max(active, Ordering::SeqCst);
+            // Only the concurrency regression opts into a deterministic rendezvous.
+            // A serial scheduler times out and fails the assertion, not the test run.
+            if step
+                .with
+                .get("wait_for_peers")
+                .and_then(|value| value.as_u64())
+                == Some(2)
+            {
+                let deadline = std::time::Instant::now() + Duration::from_secs(3);
+                while self.active.load(Ordering::SeqCst) < 2 && std::time::Instant::now() < deadline
+                {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            }
             let delay = step
                 .with
                 .get("sleep_ms")
@@ -887,10 +901,10 @@ name: concurrent
 steps:
   - id: a
     type: probe
-    with: {sleep_ms: 80}
+    with: {sleep_ms: 10, wait_for_peers: 2}
   - id: b
     type: probe
-    with: {sleep_ms: 80}
+    with: {sleep_ms: 10, wait_for_peers: 2}
 "#,
         );
         let (engine, max_active, _) = engine();

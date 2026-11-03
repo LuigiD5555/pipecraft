@@ -97,3 +97,39 @@ pipelines via `submit`/`submit_spec` if capabilities match.
 PipeCraft advertises the optional capability `external_work_contract_v1`. The `external_work_contract` operation validates and round-trips a typed `pipecraft.external-work/v1` message over the existing local IPC channel. It is deliberately side-effect free: it does not reserve capacity, create a claim, start a worker, execute a pipeline, or authorize an external effect.
 
 The transport direction frozen for G1 is provider-driven pull over the existing trusted local IPC service. No daemon callback to arbitrary provider ports is introduced. Malformed messages return `INVALID_EXTERNAL_WORK`; legacy `pipecraft.ipc/v1` operations and read-only `plan_admission` remain unchanged.
+
+
+## S02/S03 provider feed and fake-provider acceptance
+
+`plan_external_feed` accepts a full `provider_snapshot` or a
+`provider_delta` (both `pipecraft.external-work/v1`). The provider's
+`snapshot_revision` is monotonic, and a delta must match the previously
+persisted `base_revision`. The resident service persists normalized feed
+state and rejects invalid/corrupt evidence at restart. Its
+`provisional_offers` are **advisory** and carry
+`requires_confirmation:true`, **not** a runnable claim.
+
+For an optional worker admission guard, set
+`enforce_worker_registration:true` and use `register_worker`,
+`available_workers`, and `cancel_worker`. Worker TTL is enforced
+against the feed's `observed_at_ms`. Registration is deliberately not
+authoritative: no registration alone permits an external operation.
+Provider capacity and registration state are bounded; overload returns
+a typed IPC error rather than allocating unlimited work.
+
+S03's `s03_fake_provider_e2e` verifies the resident service with
+an **in-test fake provider**. The fake provider owns the confirmation,
+epoch and idempotent fake-effect receipt; PipeCraft only validates
+the typed messages and offers scheduling decisions. Simulated execution
+occurs only after fake authoritative confirmation. Lost-ACK replay
+reuses a receipt without running the fake effect twice. Invalid
+confirmations fail closed. This demonstrates **test-only**
+execution orchestration, **not** production or real Extracta execution;
+Extracta's F02/F03 PostgreSQL gates are separate.
+
+The old `ping`, `plan_admission`, `submit`, `submit_spec`,
+`status` and `pipecraft.ipc/v1` shapes are unchanged.
+Python's thin client offers optional `plan_external_feed` and worker
+registration methods without replacing existing methods.
+No cutover, provider claim or genuine domain effect is authorized
+by these S03 messages.

@@ -105,3 +105,53 @@ def test_external_work_contract_uses_structured_ipc_without_side_effects(monkeyp
     assert result["simulated"] is True
     assert result["side_effects"] is False
     assert requests == [{"op": "external_work_contract", "message": message}]
+
+
+def test_s03_provider_feed_and_worker_calls_preserve_legacy_sdk(monkeypatch, tmp_path):
+    pc = PipeCraft(tmp_path)
+    requests = []
+
+    def capture(payload):
+        requests.append(payload)
+        return {"side_effects": False, "provisional_offers": [],
+                "requires_confirmation": True}
+
+    monkeypatch.setattr(pc, "_ipc", capture)
+    message = {
+        "op": "provider_snapshot",
+        "protocol": "pipecraft.external-work/v1",
+        "request_id": "s03-python",
+        "installation_id": "test-install",
+        "provider_id": "extracta/fake/v1",
+        "snapshot_revision": 1,
+        "observed_at_ms": 1_000,
+        "resource_evidence_revision": 1,
+        "work": [], "active_claims": [],
+    }
+    assert pc.plan_external_feed(message, capacity=2, enforce_worker_registration=True)["side_effects"] is False
+    pc.register_worker("fake-worker", ["extracta.http"], now_ms=1_000, ttl_ms=5_000)
+    pc.available_workers("extracta.http", now_ms=1_001)
+    pc.cancel_worker("fake-worker", now_ms=1_002)
+    assert [request["op"] for request in requests] == [
+        "plan_external_feed", "register_worker", "available_workers", "cancel_worker"
+    ]
+    assert requests[0]["message"] is message
+    assert requests[0]["enforce_worker_registration"] is True
+
+    from pipecraft.exceptions import PipeCraftCommandError
+    import pytest
+    with pytest.raises(ValueError, match="capacity must be positive"):
+        pc.plan_external_feed(message, capacity=0)
+    with pytest.raises(ValueError, match="unsupported provider feed protocol"):
+        pc.plan_external_feed({**message, "protocol": "wrong"})
+    with pytest.raises(ValueError, match="provider_snapshot or provider_delta"):
+        pc.plan_external_feed({**message, "op": "verified_outcome"})
+    with pytest.raises(TypeError):
+        pc.plan_external_feed(None)
+
+    # Old client request shape remains unchanged.
+    pc.plan_admission({"revision": 1, "now_ms": 100, "candidates": []})
+    assert requests[-1] == {
+        "op": "plan_admission",
+        "snapshot": {"revision": 1, "now_ms": 100, "candidates": []},
+    }

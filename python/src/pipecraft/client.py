@@ -123,6 +123,43 @@ class PipeCraft:
             raise ValueError("message request_id is required")
         return self._ipc({"op": "external_work_contract", "message": message})
 
+    def plan_external_feed(
+        self, message: dict[str, Any], *,
+        capacity: int | None = None,
+        enforce_worker_registration: bool = False,
+    ) -> dict[str, Any]:
+        """S03 provider feed is advisory: proposed offers need domain confirmation."""
+        if not isinstance(message, dict):
+            raise TypeError("message must be a mapping")
+        if message.get("protocol") != "pipecraft.external-work/v1":
+            raise ValueError("unsupported provider feed protocol")
+        if message.get("op") not in ("provider_snapshot", "provider_delta"):
+            raise ValueError("expected provider_snapshot or provider_delta")
+        payload: dict[str, Any] = {
+            "op": "plan_external_feed", "message": message,
+            "enforce_worker_registration": enforce_worker_registration,
+        }
+        if capacity is not None:
+            if capacity <= 0:
+                raise ValueError("capacity must be positive")
+            payload["capacity"] = capacity
+        return self._ipc(payload)
+
+    def register_worker(
+        self, worker_id: str, capabilities: list[str], *, now_ms: int, ttl_ms: int,
+    ) -> dict[str, Any]:
+        """Register advisory capability/TTL, not an Extracta execution claim."""
+        return self._ipc({
+            "op": "register_worker", "worker_id": worker_id,
+            "capabilities": capabilities, "now_ms": now_ms, "ttl_ms": ttl_ms,
+        })
+
+    def cancel_worker(self, worker_id: str, *, now_ms: int) -> dict[str, Any]:
+        return self._ipc({"op": "cancel_worker", "worker_id": worker_id, "now_ms": now_ms})
+
+    def available_workers(self, capability: str, *, now_ms: int) -> dict[str, Any]:
+        return self._ipc({"op": "available_workers", "capability": capability, "now_ms": now_ms})
+
     def plan_admission(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         """Obtain advisory scheduling decisions. Never a claim or execute grant.
 
