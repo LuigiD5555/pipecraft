@@ -85,7 +85,7 @@ impl RuntimeService {
             .await
             .map_err(|error| error.to_string())?;
         let external_feed =
-            Arc::new(ExternalFeedDriver::open(runtime_dir.join("external-feed")).await?);
+            Arc::new(ExternalFeedDriver::open(runtime_dir.join("external-feeds.json")).await?);
         let service = Self {
             root,
             runs_dir: catalog.workspace.runs_dir.clone(),
