@@ -90,6 +90,7 @@ impl RuntimeService {
             pipeline_slots: Arc::new(Semaphore::new(config.max_pipelines.max(1))),
             store,
             external_recovery,
+            external_feed: Arc::new(ExternalFeedDriver::default()),
             jobs: Arc::new(RwLock::new(jobs)),
             cancellations: Arc::new(Mutex::new(BTreeMap::new())),
             config,
