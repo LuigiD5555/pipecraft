@@ -3,7 +3,10 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pipecraft_core::{load_pipeline, model::{PipelineDefinition, PipelineStep}};
+use pipecraft_core::{
+    load_pipeline,
+    model::{PipelineDefinition, PipelineStep},
+};
 use pipecraft_report::{status, StepResult};
 use pipecraft_runtime::{ExecutionContext, ExecutorRegistry, PipelineEngine, StepExecutor};
 
@@ -32,7 +35,9 @@ impl StepExecutor for TraceExecutor {
 fn dependency_pending_never_bypasses_ready_admission() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("pipeline.yaml");
-    std::fs::write(&input, r#"
+    std::fs::write(
+        &input,
+        r#"
 schema_version: pipecraft/v1
 name: dag-admission-regression
 steps:
@@ -43,11 +48,15 @@ steps:
     type: trace
   - id: parent
     type: trace
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     let pipeline = load_pipeline(&input).unwrap();
     let starts = Arc::new(Mutex::new(Vec::new()));
     let mut registry = ExecutorRegistry::empty();
-    registry.register(Box::new(TraceExecutor { starts: starts.clone() }));
+    registry.register(Box::new(TraceExecutor {
+        starts: starts.clone(),
+    }));
     let engine = PipelineEngine::new(registry);
     let run = engine.run(
         &pipeline,
@@ -58,7 +67,9 @@ steps:
     assert!(run.success);
     let started = starts.lock().unwrap();
     assert_eq!(started.len(), 3);
-    assert!(started.iter().position(|id| id == "parent").unwrap()
-        < started.iter().position(|id| id == "child").unwrap());
+    assert!(
+        started.iter().position(|id| id == "parent").unwrap()
+            < started.iter().position(|id| id == "child").unwrap()
+    );
     assert!(started.iter().any(|id| id == "independent"));
 }
