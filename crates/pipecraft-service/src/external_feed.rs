@@ -108,8 +108,7 @@ impl ExternalFeedDriver {
         let candidates = work
             .iter()
             .map(|candidate| {
-                let (exclusive_resources, shared_resources) =
-                    resource_keys(&candidate.resources);
+                let (exclusive_resources, shared_resources) = resource_keys(&candidate.resources);
                 Ok(WorkCandidate {
                     id: candidate.work_id.clone(),
                     group: candidate.owner_group.clone(),
