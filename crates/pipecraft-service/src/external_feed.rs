@@ -227,6 +227,7 @@ impl ExternalFeedDriver {
         }
     }
 
+    #[cfg(test)]
     pub async fn plan(
         &self,
         message: &ExternalWorkMessage,
