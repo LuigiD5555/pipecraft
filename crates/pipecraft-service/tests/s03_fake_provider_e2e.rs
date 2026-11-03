@@ -17,7 +17,10 @@ fn provider_message(op: &str, extra: Value) -> Value {
         "installation_id": "s03-install",
         "provider_id": "extracta/fake/v1"
     });
-    value.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+    value
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
     value
 }
 
@@ -123,37 +126,48 @@ async fn fake_provider_executes_only_after_confirm_and_lost_ack_does_not_duplica
     let service = RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
         .await
         .unwrap();
-    let register = service.handle(ipc(json!({
-        "op": "register_worker", "worker_id": "s03-worker",
-        "capabilities": ["extracta.http"], "now_ms": 1_000_000, "ttl_ms": 20_000
-    }))).await;
+    let register = service
+        .handle(ipc(json!({
+            "op": "register_worker", "worker_id": "s03-worker",
+            "capabilities": ["extracta.http"], "now_ms": 1_000_000, "ttl_ms": 20_000
+        })))
+        .await;
     assert!(register.ok, "{:?}", register.error);
 
-    let feed = service.handle(ipc(json!({
-        "op": "plan_external_feed", "message": snapshot(),
-        "capacity": 1, "enforce_worker_registration": true
-    }))).await;
+    let feed = service
+        .handle(ipc(json!({
+            "op": "plan_external_feed", "message": snapshot(),
+            "capacity": 1, "enforce_worker_registration": true
+        })))
+        .await;
     assert!(feed.ok, "{:?}", feed.error);
     let planned = feed.data.unwrap();
     assert_eq!(planned["decision"]["offered"], json!(["HTTP_JOB:7"]));
     assert_eq!(planned["side_effects"], false);
-    assert_eq!(planned["provisional_offers"][0]["requires_confirmation"], true);
+    assert_eq!(
+        planned["provisional_offers"][0]["requires_confirmation"],
+        true
+    );
     assert!(planned.get("claim_epoch").is_none());
     assert!(planned.get("receipt_id").is_none());
 
     let mut provider = FakeProvider::default();
     let refused = provider.confirm("offer-s03-7", false);
-    let refused_ipc = service.handle(ipc(json!({
-        "op": "external_work_contract", "message": refused
-    }))).await;
+    let refused_ipc = service
+        .handle(ipc(json!({
+            "op": "external_work_contract", "message": refused
+        })))
+        .await;
     assert!(refused_ipc.ok);
     assert!(provider.execute_once(&refused).is_err());
     assert_eq!(provider.executed, 0);
 
     let confirmation = provider.confirm("offer-s03-7", true);
-    let confirmed = service.handle(ipc(json!({
-        "op": "external_work_contract", "message": confirmation
-    }))).await;
+    let confirmed = service
+        .handle(ipc(json!({
+            "op": "external_work_contract", "message": confirmation
+        })))
+        .await;
     assert!(confirmed.ok, "{:?}", confirmed.error);
     assert_eq!(confirmed.data.unwrap()["side_effects"], false);
     let receipt = provider.execute_once(&confirmation).unwrap();
@@ -163,9 +177,11 @@ async fn fake_provider_executes_only_after_confirm_and_lost_ack_does_not_duplica
     let replayed = provider.execute_once(&confirmation).unwrap();
     assert_eq!(receipt, replayed);
     assert_eq!(provider.executed, 1);
-    let verified = service.handle(ipc(json!({
-        "op": "external_work_contract", "message": provider.outcome(replayed)
-    }))).await;
+    let verified = service
+        .handle(ipc(json!({
+            "op": "external_work_contract", "message": provider.outcome(replayed)
+        })))
+        .await;
     assert!(verified.ok, "{:?}", verified.error);
     let data = verified.data.unwrap();
     assert_eq!(data["message"]["status"], "SUCCEEDED_VERIFIED");
@@ -194,9 +210,11 @@ async fn malformed_claim_and_old_ipc_request_remain_fail_closed_compatible() {
             "operation_keys": []
         }),
     );
-    let denied = service.handle(ipc(json!({
-        "op": "external_work_contract", "message": malformed
-    }))).await;
+    let denied = service
+        .handle(ipc(json!({
+            "op": "external_work_contract", "message": malformed
+        })))
+        .await;
     assert!(!denied.ok);
     assert_eq!(denied.error.unwrap().code, "INVALID_EXTERNAL_WORK");
 
@@ -204,17 +222,27 @@ async fn malformed_claim_and_old_ipc_request_remain_fail_closed_compatible() {
     assert!(ping.ok);
     let pong = ping.data.unwrap();
     assert_eq!(pong["protocol"], "pipecraft.ipc/v1");
-    assert!(pong["capabilities"].as_array().unwrap().iter().any(|v| v == "submit_spec"));
-    assert!(pong["capabilities"].as_array().unwrap().iter().any(|v| v == "plan_admission"));
+    assert!(pong["capabilities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v == "submit_spec"));
+    assert!(pong["capabilities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v == "plan_admission"));
 
     // Older client sends only the old admission shape, no S02 fields.
-    let legacy = service.handle(ipc(json!({
-        "op": "plan_admission",
-        "snapshot": {
-            "revision": 1, "now_ms": 1_000_000, "capacity": 2,
-            "candidates": [], "active": []
-        }
-    }))).await;
+    let legacy = service
+        .handle(ipc(json!({
+            "op": "plan_admission",
+            "snapshot": {
+                "revision": 1, "now_ms": 1_000_000, "capacity": 2,
+                "candidates": [], "active": []
+            }
+        })))
+        .await;
     assert!(legacy.ok, "{:?}", legacy.error);
     assert_eq!(legacy.data.unwrap()["requires_confirmation"], true);
 
@@ -231,15 +259,24 @@ async fn fake_provider_expired_worker_does_not_propose_live_work() {
     let service = RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
         .await
         .unwrap();
-    assert!(service.handle(ipc(json!({
-        "op": "register_worker", "worker_id": "s03-worker",
-        "capabilities": ["extracta.http"], "now_ms": 990_000, "ttl_ms": 1_000
-    }))).await.ok);
-    let denied = service.handle(ipc(json!({
-        "op": "plan_external_feed", "message": snapshot(),
-        "capacity": 1, "enforce_worker_registration": true
-    }))).await;
+    assert!(
+        service
+            .handle(ipc(json!({
+                "op": "register_worker", "worker_id": "s03-worker",
+                "capabilities": ["extracta.http"], "now_ms": 990_000, "ttl_ms": 1_000
+            })))
+            .await
+            .ok
+    );
+    let denied = service
+        .handle(ipc(json!({
+            "op": "plan_external_feed", "message": snapshot(),
+            "capacity": 1, "enforce_worker_registration": true
+        })))
+        .await;
     assert!(denied.ok, "{:?}", denied.error);
     assert!(denied.data.unwrap()["provisional_offers"]
-        .as_array().unwrap().is_empty());
+        .as_array()
+        .unwrap()
+        .is_empty());
 }
