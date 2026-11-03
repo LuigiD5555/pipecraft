@@ -84,6 +84,7 @@ impl RuntimeService {
             .prepare()
             .await
             .map_err(|error| error.to_string())?;
+        let external_feed = Arc::new(ExternalFeedDriver::open(runtime_dir.join("external-feed")).await?);
         let service = Self {
             root,
             runs_dir: catalog.workspace.runs_dir.clone(),
@@ -92,7 +93,7 @@ impl RuntimeService {
             pipeline_slots: Arc::new(Semaphore::new(config.max_pipelines.max(1))),
             store,
             external_recovery,
-            external_feed: Arc::new(ExternalFeedDriver::default()),
+            external_feed,
             worker_registry: Arc::new(WorkerRegistry::default()),
             jobs: Arc::new(RwLock::new(jobs)),
             cancellations: Arc::new(Mutex::new(BTreeMap::new())),
