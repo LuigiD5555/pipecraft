@@ -56,6 +56,12 @@ jobs:
             pipecraft-rust-${{ runner.os }}-
       - name: Verify source structure
         run: python3 scripts/check_release_sources.py
+      - name: Verify release tag matches workspace version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          test "$GITHUB_REF_NAME" = "v$version"
       - name: Verify committed lockfile
         run: |
           set -euo pipefail
@@ -84,7 +90,10 @@ jobs:
           cp "$candidate" pipecraft-linux-x86_64
           chmod 0755 pipecraft-linux-x86_64
           sha256sum pipecraft-linux-x86_64 > pipecraft-linux-x86_64.sha256
-          ./pipecraft-linux-x86_64 --version
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          reported="$(./pipecraft-linux-x86_64 --version)"
+          echo "$reported"
+          echo "$reported" | grep -F -- "$version"
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
         with:
