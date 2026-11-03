@@ -22,6 +22,7 @@ on:
       - 'crates/pipecraft-service/src/worker_registry.rs'
       - 'crates/pipecraft-service/src/protocol.rs'
       - 'crates/pipecraft-service/tests/s01_external_feed_ipc.rs'
+      - 'crates/pipecraft-service/tests/s02_worker_registry_ipc.rs'
       - '.github/workflows/g2-runtime-fast.yml'
   workflow_dispatch:
 
