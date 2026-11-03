@@ -12,6 +12,8 @@ on:
       - 'crates/pipecraft-runtime/src/scheduler.rs'
       - 'crates/pipecraft-runtime/tests/admission_gate.rs'
       - 'crates/pipecraft-runtime/tests/extracta_capacity_parity.rs'
+      - 'crates/pipecraft-runtime/tests/extracta_admission_parity.rs'
+      - 'tests/golden/extracta-admission-v1.json'
       - 'tests/golden/extracta-capacity-v1.json'
       - 'tests/golden/extracta-admission-v1.json'
       - 'crates/pipecraft-runtime/tests/extracta_admission_parity.rs'
