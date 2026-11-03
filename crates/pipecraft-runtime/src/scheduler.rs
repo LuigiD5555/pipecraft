@@ -833,10 +833,14 @@ mod tests {
             self.max_active.fetch_max(active, Ordering::SeqCst);
             // Only the concurrency regression opts into a deterministic rendezvous.
             // A serial scheduler times out and fails the assertion, not the test run.
-            if step.with.get("wait_for_peers").and_then(|value| value.as_u64()) == Some(2) {
+            if step
+                .with
+                .get("wait_for_peers")
+                .and_then(|value| value.as_u64())
+                == Some(2)
+            {
                 let deadline = std::time::Instant::now() + Duration::from_secs(3);
-                while self.active.load(Ordering::SeqCst) < 2
-                    && std::time::Instant::now() < deadline
+                while self.active.load(Ordering::SeqCst) < 2 && std::time::Instant::now() < deadline
                 {
                     std::thread::sleep(Duration::from_millis(1));
                 }
