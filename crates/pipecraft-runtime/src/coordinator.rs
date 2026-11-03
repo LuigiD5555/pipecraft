@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+use crate::capacity::{calculate, CapacityEvidence, CapacityProfile, CapacityResult};
 use crate::resources::{GlobalResourceManager, ResourceDemand, ResourceLease};
 
 #[derive(Clone, Debug)]
@@ -25,6 +26,19 @@ impl RuntimeCoordinator {
             resources: GlobalResourceManager::with_point_capacity(resource_points),
             max_tasks,
         }
+    }
+
+    /// Refresh the shared weighted ledger from explicit, reproducible host
+    /// observations. This does not sample hardware, preempt active work,
+    /// claim provider jobs, or grant authority to perform external effects.
+    pub fn apply_capacity_evidence(
+        &self,
+        profile: &CapacityProfile,
+        evidence: &CapacityEvidence,
+    ) -> Result<CapacityResult, String> {
+        let result = calculate(profile, evidence)?;
+        self.resources.set_point_capacity(result.points)?;
+        Ok(result)
     }
 
     pub fn max_tasks(&self) -> usize {
@@ -72,6 +86,61 @@ impl RuntimeCoordinator {
 mod tests {
     use super::*;
     use crate::resources::{ResourceDemand, ResourceShareMode};
+
+    #[test]
+    fn adaptive_evidence_updates_ledger_without_preempting_external_occupancy() {
+        let coordinator = RuntimeCoordinator::with_resource_points(4, 4);
+        let profile = CapacityProfile::default();
+        let mut evidence = CapacityEvidence::default();
+        let heavy = [ResourceDemand {
+            resource_key: "browser".into(),
+            points: 3,
+            quantity: 1,
+            share_mode: ResourceShareMode::Shared,
+            limit: 2,
+        }];
+        let light = [ResourceDemand {
+            resource_key: "http".into(),
+            points: 2,
+            quantity: 1,
+            share_mode: ResourceShareMode::Shared,
+            limit: 2,
+        }];
+        let first = coordinator
+            .try_external_resources("browser-a", &heavy)
+            .unwrap()
+            .unwrap();
+        assert!(coordinator
+            .try_external_resources("http-a", &light)
+            .unwrap()
+            .is_none());
+
+        evidence.clean = 5;
+        let grown = coordinator
+            .apply_capacity_evidence(&profile, &evidence)
+            .unwrap();
+        assert_eq!(grown.points, 5);
+        assert_eq!(grown.reason, "GROWN_BY_EVIDENCE");
+        let second = coordinator
+            .try_external_resources("http-a", &light)
+            .unwrap()
+            .unwrap();
+
+        evidence.memory_available_mib = Some(1_724);
+        let reduced = coordinator
+            .apply_capacity_evidence(&profile, &evidence)
+            .unwrap();
+        assert_eq!(reduced.points, 1);
+        assert_eq!(reduced.reason, "MEMORY_PRESSURE");
+        assert_eq!(coordinator.resources.snapshot().points_used, 5);
+        drop((first, second));
+        assert_eq!(coordinator.resources.snapshot().points_used, 0);
+        assert_eq!(coordinator.resources.snapshot().points_limit, 1);
+        assert!(coordinator
+            .try_external_resources("browser-b", &heavy)
+            .unwrap()
+            .is_none());
+    }
 
     #[test]
     fn coordinator_exposes_one_weighted_ledger_for_external_work() {

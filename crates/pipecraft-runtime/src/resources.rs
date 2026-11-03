@@ -100,6 +100,29 @@ impl GlobalResourceManager {
         }
     }
 
+    /// Apply a host-supplied point budget to the same ledger used by DAG and
+    /// external work. A reduction never revokes existing leases; it only
+    /// prevents new admissions until occupancy falls below the new limit.
+    /// Readers waiting on resources are notified when the budget changes.
+    pub fn set_point_capacity(&self, points_limit: u32) -> Result<(), String> {
+        if points_limit == 0 {
+            return Err("resource point capacity must be positive".into());
+        }
+        let changed = {
+            let mut state = self.state.lock().expect("resource state poisoned");
+            if state.points_limit == points_limit {
+                false
+            } else {
+                state.points_limit = points_limit;
+                true
+            }
+        };
+        if changed {
+            self.signal_change();
+        }
+        Ok(())
+    }
+
     /// Preserve the legacy DAG resource API while routing it through the same
     /// ledger used by external occupancy.
     pub fn try_acquire(&self, step: &PipelineStep) -> Option<ResourceLease> {
@@ -383,6 +406,44 @@ mod tests {
             share_mode: mode,
             limit,
         }
+    }
+
+    #[test]
+    fn capacity_changes_are_non_preemptive_and_wake_waiters() {
+        let resources = GlobalResourceManager::with_point_capacity(4);
+        let held = resources
+            .try_acquire_demands(
+                "held",
+                &[demand("browser", 3, 1, ResourceShareMode::Shared, 2)],
+            )
+            .unwrap()
+            .unwrap();
+
+        let generation = resources.generation();
+        resources.set_point_capacity(1).unwrap();
+        assert!(resources.generation() > generation);
+        assert_eq!(resources.snapshot().points_used, 3);
+        assert_eq!(resources.snapshot().points_limit, 1);
+        assert!(resources
+            .try_acquire_demands(
+                "new",
+                &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],
+            )
+            .unwrap()
+            .is_none());
+        drop(held);
+        assert!(resources
+            .try_acquire_demands(
+                "new",
+                &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],
+            )
+            .unwrap()
+            .is_some());
+        let stable_generation = resources.generation();
+        resources.set_point_capacity(1).unwrap();
+        assert_eq!(resources.generation(), stable_generation);
+        assert!(resources.set_point_capacity(0).is_err());
+        assert_eq!(resources.snapshot().points_limit, 1);
     }
 
     #[test]
