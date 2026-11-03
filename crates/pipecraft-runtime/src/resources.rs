@@ -425,18 +425,12 @@ mod tests {
         assert_eq!(resources.snapshot().points_used, 3);
         assert_eq!(resources.snapshot().points_limit, 1);
         assert!(resources
-            .try_acquire_demands(
-                "new",
-                &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],
-            )
+            .try_acquire_demands("new", &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],)
             .unwrap()
             .is_none());
         drop(held);
         assert!(resources
-            .try_acquire_demands(
-                "new",
-                &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],
-            )
+            .try_acquire_demands("new", &[demand("cpu", 1, 1, ResourceShareMode::Shared, 2)],)
             .unwrap()
             .is_some());
         let stable_generation = resources.generation();
