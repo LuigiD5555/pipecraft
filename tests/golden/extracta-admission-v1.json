@@ -1,0 +1,884 @@
+{
+  "schema_version": "extracta.pipecraft.g2.admission-parity/v1",
+  "oracle": "Extracta SchedulingEngine.decide; compare first proposed unit only (one Python claim per decision)",
+  "cases": [
+    {
+      "id": "empty",
+      "expected_first": null,
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 4,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "one_eligible",
+      "expected_first": "HTTP_JOB:000001",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 4,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "lower_priority_first",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 110,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 90,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "aging_outweighs_priority",
+      "expected_first": "HTTP_JOB:000001",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 104,
+            "eligible_since_ms": 1999999280000,
+            "ready_at_ms": 1999999280000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999940000,
+            "ready_at_ms": 1999999940000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "lru_between_sources",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {
+          "src:1": 1999999990000,
+          "src:2": 1999999400000
+        },
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "stable_id_tiebreak",
+      "expected_first": "HTTP_JOB:000003",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000020",
+            "group": "src:20",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000003",
+            "group": "src:3",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "future_due",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 2000000060000,
+            "ready_at_ms": 2000000060000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 2,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "explicit_hold",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": 2000000060000,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 2,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "needs_human",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 1,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": "NEEDS_HUMAN"
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 2,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "suspended",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 1,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": "SUSPENDED"
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 2,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "source_occupied",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 1,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-1",
+            "group": "src:1",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 3,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "scope_occupied",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 1,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [
+              "origin:shared"
+            ],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [
+              "origin:independent"
+            ],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-99",
+            "group": "src:99",
+            "weight": 1,
+            "scopes": [
+              "origin:shared"
+            ],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 3,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "capacity_exhausted",
+      "expected_first": null,
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-90",
+            "group": "src:90",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          },
+          {
+            "id": "running-91",
+            "group": "src:91",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 2,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "browser_overweight_when_idle",
+      "expected_first": "HTTP_JOB:000001",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 3,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "browser_overweight_not_while_busy",
+      "expected_first": null,
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 3,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-90",
+            "group": "src:90",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "heavy_guard_expired",
+      "expected_first": null,
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999600000,
+            "ready_at_ms": 1999999600000,
+            "not_before_ms": null,
+            "weight": 3,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 105,
+            "eligible_since_ms": 1999999990000,
+            "ready_at_ms": 1999999990000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-80",
+            "group": "src:80",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          },
+          {
+            "id": "running-81",
+            "group": "src:81",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 4,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "heavy_guard_not_yet_expired",
+      "expected_first": "HTTP_JOB:000002",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999880000,
+            "ready_at_ms": 1999999880000,
+            "not_before_ms": null,
+            "weight": 3,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 105,
+            "eligible_since_ms": 1999999990000,
+            "ready_at_ms": 1999999990000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [
+          {
+            "id": "running-80",
+            "group": "src:80",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          },
+          {
+            "id": "running-81",
+            "group": "src:81",
+            "weight": 1,
+            "scopes": [],
+            "exclusive_resources": [],
+            "shared_resources": []
+          }
+        ],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 4,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "lru_after_ready",
+      "expected_first": "HTTP_JOB:000001",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000001",
+            "group": "src:1",
+            "priority": 100,
+            "eligible_since_ms": 1999999880000,
+            "ready_at_ms": 1999999880000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000002",
+            "group": "src:2",
+            "priority": 100,
+            "eligible_since_ms": 1999999880000,
+            "ready_at_ms": 1999999880000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {
+          "src:1": 1999999500000,
+          "src:2": 1999999800000
+        },
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    },
+    {
+      "id": "two_units_same_source",
+      "expected_first": "HTTP_JOB:000011",
+      "snapshot": {
+        "revision": 1,
+        "now_ms": 2000000000000,
+        "candidates": [
+          {
+            "id": "HTTP_JOB:000010",
+            "group": "src:1",
+            "priority": 110,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          },
+          {
+            "id": "HTTP_JOB:000011",
+            "group": "src:1",
+            "priority": 90,
+            "eligible_since_ms": 1999999900000,
+            "ready_at_ms": 1999999900000,
+            "not_before_ms": null,
+            "weight": 1,
+            "scopes": [],
+            "hard_block": null
+          }
+        ],
+        "active": [],
+        "last_dispatch_ms": {},
+        "settings": {
+          "policy": "fair",
+          "aging_ms": 120000,
+          "heavy_wait_guard_ms": 300000,
+          "initial_capacity": 4,
+          "ceiling_capacity": 8,
+          "floor_capacity": 1,
+          "allow_idle_overweight": true
+        },
+        "capacity": 1,
+        "adaptive_capacity": null
+      }
+    }
+  ]
+}
