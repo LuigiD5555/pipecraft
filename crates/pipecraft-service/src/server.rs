@@ -294,6 +294,7 @@ impl RuntimeService {
                 message,
                 settings,
                 capacity,
+                adaptive_capacity,
                 last_dispatch_ms,
                 enforce_worker_registration,
             } => {
@@ -308,6 +309,7 @@ impl RuntimeService {
                         &message,
                         settings,
                         capacity,
+                        adaptive_capacity,
                         last_dispatch_ms,
                         capabilities.as_ref(),
                     )
