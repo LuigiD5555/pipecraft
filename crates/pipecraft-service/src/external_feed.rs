@@ -236,15 +236,8 @@ impl ExternalFeedDriver {
         capacity: Option<u32>,
         last_dispatch_ms: BTreeMap<String, u64>,
     ) -> Result<ExternalFeedPlan, String> {
-        self.plan_with_workers(
-            message,
-            settings,
-            capacity,
-            None,
-            last_dispatch_ms,
-            None,
-        )
-        .await
+        self.plan_with_workers(message, settings, capacity, None, last_dispatch_ms, None)
+            .await
     }
 
     pub async fn plan_with_workers(
