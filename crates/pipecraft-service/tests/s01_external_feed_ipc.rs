@@ -68,3 +68,44 @@ async fn resident_ipc_admits_snapshot_and_returns_only_provisional_offers() {
     assert!(!rejected.ok);
     assert_eq!(rejected.error.unwrap().code, "INVALID_EXTERNAL_FEED");
 }
+
+#[tokio::test]
+async fn resident_external_feed_calculates_adaptive_capacity_in_rust() {
+    let root = tempfile::tempdir().unwrap();
+    let service = RuntimeService::open(root.path().to_path_buf(), ServiceConfig::default())
+        .await
+        .unwrap();
+
+    let mut value = snapshot(31);
+    value.as_object_mut().unwrap().remove("capacity");
+    value["adaptive_capacity"] = json!({
+        "profile": {
+            "initial": 4,
+            "ceiling": 8,
+            "floor": 1,
+            "grow_every_clean": 5,
+            "min_samples": 4,
+            "min_bad_groups": 2,
+            "failure_ratio": 0.25,
+            "memory_reserve_mib": 1024,
+            "mib_per_point": 700,
+            "cpu_load_limit": 0.85,
+            "fixed": null
+        },
+        "evidence": {
+            "clean": 5,
+            "bad": 0,
+            "bad_groups": 0,
+            "memory_available_mib": 1200,
+            "cpu_load_ratio": 0.2
+        }
+    });
+    let request: IpcRequest = serde_json::from_value(value).unwrap();
+    let result = service.handle(request).await;
+    assert!(result.ok, "{:?}", result.error);
+    let data = result.data.unwrap();
+    assert_eq!(data["decision"]["capacity_total"], 1);
+    assert_eq!(data["decision"]["offered"], json!(["HTTP_JOB:1"]));
+    assert_eq!(data["side_effects"], false);
+}
+
