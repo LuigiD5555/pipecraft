@@ -6,7 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use pipecraft_runtime::admission::{
-    decide, ActiveClaim, AdmissionDecision, AdmissionSettings, AdmissionSnapshot, WorkCandidate,
+    decide, ActiveClaim, AdmissionDecision, AdmissionSettings, AdmissionSnapshot, CapacityInput,
+    WorkCandidate,
 };
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
@@ -235,8 +236,15 @@ impl ExternalFeedDriver {
         capacity: Option<u32>,
         last_dispatch_ms: BTreeMap<String, u64>,
     ) -> Result<ExternalFeedPlan, String> {
-        self.plan_with_workers(message, settings, capacity, last_dispatch_ms, None)
-            .await
+        self.plan_with_workers(
+            message,
+            settings,
+            capacity,
+            None,
+            last_dispatch_ms,
+            None,
+        )
+        .await
     }
 
     pub async fn plan_with_workers(
@@ -244,6 +252,7 @@ impl ExternalFeedDriver {
         message: &ExternalWorkMessage,
         settings: AdmissionSettings,
         capacity: Option<u32>,
+        adaptive_capacity: Option<CapacityInput>,
         last_dispatch_ms: BTreeMap<String, u64>,
         registered_capabilities: Option<&BTreeSet<String>>,
     ) -> Result<ExternalFeedPlan, String> {
@@ -352,7 +361,7 @@ impl ExternalFeedDriver {
             last_dispatch_ms,
             settings,
             capacity,
-            adaptive_capacity: None,
+            adaptive_capacity,
         };
         let decision = decide(&admission)?;
         let provisional_offers = decision
