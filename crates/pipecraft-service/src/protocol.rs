@@ -511,6 +511,8 @@ pub enum IpcRequest {
         #[serde(default)]
         capacity: Option<u32>,
         #[serde(default)]
+        adaptive_capacity: Option<pipecraft_runtime::admission::CapacityInput>,
+        #[serde(default)]
         last_dispatch_ms: std::collections::BTreeMap<String, u64>,
         #[serde(default)]
         enforce_worker_registration: bool,
